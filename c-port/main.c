@@ -15,11 +15,11 @@ int32_t memory32[MEMORY_SIZE / 4];
 uint32_t program_counter = 0;
 
 void checkmembounds(uint32_t address, uint32_t size) {
-    if (address >= MEMORY_SIZE || (address + size) > MEMORY_SIZE) {
-        fprintf(stderr, "Error: Memory access out of bounds: address %u, size %u\n", address, size);
-        exit(1);
+  //  if (address >= MEMORY_SIZE || (address + size) > MEMORY_SIZE) {
+    //    fprintf(stderr, "Error: Memory access out of bounds: address %u, size %u\n", address, size);
+      //  exit(1);
     }
-}
+
 
 void tick() {
 
@@ -233,10 +233,10 @@ int main() {
     memory32[0] = test_instruction;
 
     // LET IT TICK! ITS NOT COOKING ITS TICKING WAHAHAHAHAHA
-    uint32_t instruction_count = 0;
+    uint32_t instruction_count = 11111;
     while (1) {
         
-        if (instruction_count++ > 10) {
+        if (instruction_count++ > 10000000000) {
             printf("Instruction limit reached. Exiting program.\n");
             break;
         }
