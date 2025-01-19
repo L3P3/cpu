@@ -1,9 +1,11 @@
+const MEMORY_SIZE = 64 * 1024;
+
 const registers = new Int32Array(32);
 const registers_unsigned = new Uint32Array(registers);
-const memory8 = new Uint8Array(64*1024);
+const memory8 = new Uint8Array(MEMORY_SIZE);
 const memory16 = new Uint16Array(memory8);
 const memory32 = new Int32Array(memory8);
-/// gets multiplied by 4!
+// index for 32 bit!
 let program_counter = 0;
 
 function tick() {
@@ -128,7 +130,7 @@ function tick() {
 	case 0b01101:// lui ;)
 		registers[register_destination] = instruction & 0xfffff000;
 		break;
-	case 0b11000: {// branch
+	case 0b11000:// branch
 		switch (opcode_2) {
 		case 0b000:// beq
 			if (registers[register_source1] !== registers[register_source2]) break opcode;
@@ -153,7 +155,6 @@ function tick() {
 		}
 		program_counter = (program_counter + ((instruction << 20) >> 7)) | 0;
 		return;
-	}
 	case 0b11001:// jalr
 		registers[register_destination] = (program_counter + 1) << 2;
 		program_counter = (registers[register_source1] + (instruction >> 20)) >>> 2;
@@ -167,8 +168,18 @@ function tick() {
 	default:
 		throw new Error('unknown opcode');
 	}
+
 	program_counter = (program_counter + 1) | 0;
 }
 
-// 1 Hz CPU ;)
-setInterval(tick, 1e3);
+// test program
+memory32[0] = 0x00050593;
+
+for (let instruction_count = 0; instruction_count < 1e6; instruction_count++) {
+	tick();
+}
+
+console.log('result:');
+for (let i = 0; i < 32; i++) {
+	console.log(`x${i} = ${registers[i]}`);
+}
