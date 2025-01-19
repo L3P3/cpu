@@ -233,10 +233,10 @@ int main() {
     memory32[0] = test_instruction;
 
     // LET IT TICK! ITS NOT COOKING ITS TICKING WAHAHAHAHAHA
-    uint32_t instruction_count = 11111;
+    uint32_t instruction_count = 0;
     while (1) {
         
-        if (instruction_count++ > 10000000000) {
+        if (instruction_count++ > 1000000) {
             printf("Instruction limit reached. Exiting program.\n");
             break;
         }
