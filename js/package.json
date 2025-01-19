@@ -1,0 +1,10 @@
+{
+	"name": "cpu",
+	"version": "0.0.1",
+	"description": "risc-v emulator in js",
+	"scripts": {
+		"start": "bun run index.js"
+	},
+	"author": "L3P3 <dev@l3p3.de> (https://l3p3.de)",
+	"license": "Zlib"
+}
