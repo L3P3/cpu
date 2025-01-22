@@ -1,17 +1,20 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
 #define MEMORY_SIZE 64 * 1024
 
 int32_t registers[32];
-int32_t memory[MEMORY_SIZE / 4];
+uint32_t *registers_unsigned = (uint32_t *) registers;
+uint8_t memory8[MEMORY_SIZE];
+uint16_t *memory16 = (uint16_t *) memory8;
+int32_t *memory32 = (int32_t *) memory8;
+
 // index for 32 bit!
 uint32_t program_counter = 0;
 
-void error(char[] message) {
-	fprintf(stderr, "Error: %c\n", message);
+void error(const char *message) {
+	fprintf(stderr, "Error: %s\n", message);
 	exit(1);
 }
 
@@ -26,7 +29,7 @@ void tick() {
 	registers[0] = 0;
 
 	memory_bounds_check(program_counter);
-	uint32_t instruction = memory[program_counter];
+	uint32_t instruction = memory32[program_counter];
 	uint32_t opcode_1 = (instruction >> 2) & 0b11111;
 	uint32_t register_destination = (instruction >> 7) & 0b11111;
 	uint32_t opcode_2 = (instruction >> 12) & 0b111;
@@ -35,7 +38,7 @@ void tick() {
 
 	switch (opcode_1) {
 	case 0b00000: {// load
-	  memory_bounds_check(instruction >> 22);
+		memory_bounds_check(instruction >> 22);
 		int32_t data = memory[instruction >> 22];
 		switch (opcode_2) {
 		case 0b000:// lb
@@ -92,17 +95,17 @@ void tick() {
 		break;
 	case 0b01000: {// store
 		uint32_t offset = instruction >> 25;
-		checkmembounds(registers_unsigned[register_source1] + offset, 1);
+		memory_bounds_check(registers_unsigned[register_source1] + offset);
 		switch (opcode_2) {
 		case 0b000:// sb
 			memory8[registers_unsigned[register_source1] + offset] = registers[register_source2] & 0xff;
 			break;
 		case 0b001:// sh
-			checkmembounds((registers_unsigned[register_source1] + offset) & ~1, 2); // Ensure 2-byte alignment for sh
+			memory_bounds_check((registers_unsigned[register_source1] + offset) & ~1); // Ensure 2-byte alignment for sh
 			memory16[(registers_unsigned[register_source1] + offset) >> 1] = registers[register_source2] & 0xffff;
 			break;
 		case 0b010:// sw
-			checkmembounds((registers_unsigned[register_source1] + offset) & ~3, 4); // Ensure 4-byte alignment for sw
+			memory_bounds_check((registers_unsigned[register_source1] + offset) & ~3); // Ensure 4-byte alignment for sw
 			memory[(registers_unsigned[register_source1] + offset) >> 2] = registers[register_source2];
 			break;
 		default:
