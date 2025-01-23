@@ -3,10 +3,10 @@
 const MEMORY_SIZE = 64 * 1024;
 
 const registers = new Int32Array(32);
-const registers_unsigned = new Uint32Array(registers);
+const registers_unsigned = new Uint32Array(registers.buffer);
 const memory8 = new Uint8Array(MEMORY_SIZE);
-const memory16 = new Uint16Array(memory8);
-const memory32 = new Int32Array(memory8);
+const memory16 = new Uint16Array(memory8.buffer);
+const memory32 = new Int32Array(memory8.buffer);
 
 // index for 32 bit!
 let program_counter = 0;
@@ -196,17 +196,11 @@ function tick() {
 	program_counter = program_counter + 1 | 0;
 }
 
-// test program
-memory32[0] = 0xdeadc2b7;
-memory32[1] = 0xeef28293;
-memory32[2] = 0x04000313;
-memory32[3] = 0x00530023;
-memory32[4] = 0x00531023;
-memory32[5] = 0x00532023;
-memory32[6] = 0x04000383;
-memory32[7] = 0x04001383;
-memory32[8] = 0x04002383;
-memory32[9] = 0xfe9ff06f;
+// load program
+const program_path = process.argv[2] || '../tests/calc.bin';
+console.log('loading ' + program_path);
+require('fs').readFileSync(program_path).copy(memory8);
+console.log('running');
 
 const time_start = performance.now();
 let instruction_count = 0;
@@ -232,5 +226,7 @@ for (let i = 1; i < 32; i++) {
 		('x' + i).padStart(3, ' ')
 	} = 0x${
 		(registers[i] >>> 0).toString(16).padStart(8, '0')
+	} ${
+		registers[i]
 	}`);
 }

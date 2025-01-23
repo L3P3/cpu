@@ -11,4 +11,4 @@ all: $(BINARIES)
 	riscv64-unknown-elf-objcopy -O binary $< $@
 
 clean:
-	rm -f $(OBJECTS) $(BINARIES)
+	rm $(OBJECTS) $(BINARIES)
