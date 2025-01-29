@@ -58,7 +58,7 @@ function tick() {
 		registers[register_destination] = registers[register_source1] ^ instruction >> 20;
 		break;
 	case 0b00100101:// srli
-		registers[register_destination] = registers[register_source1] >>> (instruction >>> 20);
+		registers_unsigned[register_destination] = registers_unsigned[register_source1] >>> (instruction >>> 20);
 		break;
 	case 0b00100110:// ori
 		registers[register_destination] = registers[register_source1] | instruction >> 20;
@@ -108,11 +108,12 @@ function tick() {
 		break;
 	case 0b01100101: {// srl/sra
 		const shift_by = registers[register_source2] & 0b11111;
-		registers[register_destination] = (
-			instruction >>> 30
-			?	registers[register_source1] >>> shift_by
-			:	registers[register_source1] >> shift_by
-		);
+		if (instruction >>> 30) {
+			registers_unsigned[register_destination] = registers_unsigned[register_source1] >>> shift_by;
+		}
+		else {
+			registers[register_destination] = registers[register_source1] >> shift_by;
+		}
 		break;
 	}
 	case 0b01100110:// or
@@ -159,13 +160,12 @@ function tick() {
 		default:
 			throw 'invalid branch condition';
 		}
-		const offset = (
-			instruction >> 31 << 11 |// 31 -> 11
-			(register_destination & 0b1) << 42 |// dest -> 10
-			instruction >>> 20 << 9 |// 20 -> 10
-			instruction >>> 22// 30-21 -> 9-0
-		) >> 1;
-		program_counter = program_counter + offset | 0;
+		program_counter = program_counter + ( // 12 bit offset, shifted one to the right
+			instruction >> 31 << 10 | // 31 -> 10
+			(register_destination & 0x1) << 9 | // dest -> 9
+			instruction >>> 25 << 3 | // 30-25 -> 8-3
+			register_destination >>> 2 // dest -> 2-0
+		) | 0;
 		return;
 	case 0b11001000:// jalr
 		registers[register_destination] = program_counter + 1 << 2;
@@ -197,7 +197,7 @@ function tick() {
 }
 
 // load program
-const program_path = process.argv[2] || '../tests/calc.bin';
+const program_path = process.argv[2] || '../tests/count.bin';
 console.log('loading ' + program_path);
 require('fs').readFileSync(program_path).copy(memory8);
 console.log('running');
