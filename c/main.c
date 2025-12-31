@@ -32,7 +32,7 @@ void tick() {
 	uint32_t register_source1 = (instruction >> 15) & 0b11111;
 	uint32_t register_source2 = (instruction >> 20) & 0b11111;
 
-	uint8_t opcode_combined = ((instruction >> 2 << 3) & 0xff) | funct3;
+	uint8_t opcode_combined = (((instruction >> 2) << 3) & 0xff) | funct3;
 
 	switch (opcode_combined) {
 	// load
