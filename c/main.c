@@ -49,7 +49,7 @@ void tick() {
 	case 0b00000001:// lh
 		{
 			int32_t addr = registers[register_source1] + ((int32_t)instruction >> 20);
-			if (addr >= 0 && addr < MEMORY_SIZE - 1) {
+			if (addr >= 0 && addr <= MEMORY_SIZE - 2) {
 				registers[register_destination] = (int16_t) memory16[addr >> 1];
 			} else {
 				registers[register_destination] = 0;
@@ -59,7 +59,7 @@ void tick() {
 	case 0b00000010:// lw
 		{
 			int32_t addr = registers[register_source1] + ((int32_t)instruction >> 20);
-			if (addr >= 0 && addr < MEMORY_SIZE - 3) {
+			if (addr >= 0 && addr <= MEMORY_SIZE - 4) {
 				registers[register_destination] = memory32[addr >> 2];
 			} else {
 				registers[register_destination] = 0;
@@ -79,7 +79,7 @@ void tick() {
 	case 0b00000101:// lhu
 		{
 			int32_t addr = registers[register_source1] + ((int32_t)instruction >> 20);
-			if (addr >= 0 && addr < MEMORY_SIZE - 1) {
+			if (addr >= 0 && addr <= MEMORY_SIZE - 2) {
 				registers[register_destination] = memory16[addr >> 1];
 			} else {
 				registers[register_destination] = 0;
@@ -134,7 +134,7 @@ void tick() {
 	case 0b01000001:// sh
 		{
 			int32_t addr = registers[register_source1] + (((int32_t)instruction >> 25) << 5 | register_destination);
-			if (addr >= 0 && addr < MEMORY_SIZE - 1) {
+			if (addr >= 0 && addr <= MEMORY_SIZE - 2) {
 				memory16[addr >> 1] = registers[register_source2];
 			}
 		}
@@ -142,7 +142,7 @@ void tick() {
 	case 0b01000010:// sw
 		{
 			int32_t addr = registers[register_source1] + (((int32_t)instruction >> 25) << 5 | register_destination);
-			if (addr >= 0 && addr < MEMORY_SIZE - 3) {
+			if (addr >= 0 && addr <= MEMORY_SIZE - 4) {
 				memory32[addr >> 2] = registers[register_source2];
 			}
 		}
