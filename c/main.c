@@ -121,10 +121,10 @@ void tick() {
 	case 0b01100101: {// srl/sra
 		uint32_t shift_by = registers[register_source2] & 0b11111;
 		if (instruction >> 30) {
-			registers_unsigned[register_destination] = registers_unsigned[register_source1] >> shift_by;
+			registers[register_destination] = registers[register_source1] >> shift_by;
 		}
 		else {
-			registers[register_destination] = registers[register_source1] >> shift_by;
+			registers_unsigned[register_destination] = registers_unsigned[register_source1] >> shift_by;
 		}
 		break;
 	}
