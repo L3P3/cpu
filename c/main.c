@@ -36,41 +36,36 @@ void tick() {
 
 	switch (opcode_combined) {
 	// load
-	case 0b00000000:// lb
-		{
-			int32_t addr = registers[register_source1] + ((int32_t)instruction >> 20);
-			if (addr < 0 || addr >= MEMORY_SIZE) goto error_oob;
-			registers[register_destination] = (int8_t) memory8[addr];
-		}
+	case 0b00000000: {// lb
+		int32_t addr = registers[register_source1] + ((int32_t)instruction >> 20);
+		if (addr < 0 || addr >= MEMORY_SIZE) goto error_oob;
+		registers[register_destination] = (int8_t) memory8[addr];
 		break;
-	case 0b00000001:// lh
-		{
-			int32_t addr = registers[register_source1] + ((int32_t)instruction >> 20);
-			if (addr < 0 || addr > MEMORY_SIZE - 2) goto error_oob;
-			registers[register_destination] = (int16_t) memory16[addr >> 1];
-		}
+	}
+	case 0b00000001: {// lh
+		int32_t addr = registers[register_source1] + ((int32_t)instruction >> 20);
+		if (addr < 0 || addr > MEMORY_SIZE - 2) goto error_oob;
+		registers[register_destination] = (int16_t) memory16[addr >> 1];
 		break;
-	case 0b00000010:// lw
-		{
-			int32_t addr = registers[register_source1] + ((int32_t)instruction >> 20);
-			if (addr < 0 || addr > MEMORY_SIZE - 4) goto error_oob;
-			registers[register_destination] = memory32[addr >> 2];
-		}
+	}
+	case 0b00000010: {// lw
+		int32_t addr = registers[register_source1] + ((int32_t)instruction >> 20);
+		if (addr < 0 || addr > MEMORY_SIZE - 4) goto error_oob;
+		registers[register_destination] = memory32[addr >> 2];
 		break;
-	case 0b00000100:// lbu
-		{
-			int32_t addr = registers[register_source1] + ((int32_t)instruction >> 20);
-			if (addr < 0 || addr >= MEMORY_SIZE) goto error_oob;
-			registers[register_destination] = memory8[addr];
-		}
+	}
+	case 0b00000100: {// lbu
+		int32_t addr = registers[register_source1] + ((int32_t)instruction >> 20);
+		if (addr < 0 || addr >= MEMORY_SIZE) goto error_oob;
+		registers[register_destination] = memory8[addr];
 		break;
-	case 0b00000101:// lhu
-		{
-			int32_t addr = registers[register_source1] + ((int32_t)instruction >> 20);
-			if (addr < 0 || addr > MEMORY_SIZE - 2) goto error_oob;
-			registers[register_destination] = memory16[addr >> 1];
-		}
+	}
+	case 0b00000101: {// lhu
+		int32_t addr = registers[register_source1] + ((int32_t)instruction >> 20);
+		if (addr < 0 || addr > MEMORY_SIZE - 2) goto error_oob;
+		registers[register_destination] = memory16[addr >> 1];
 		break;
+	}
 	// fence
 	// register+immediate
 	case 0b00100000:// addi
@@ -108,27 +103,24 @@ void tick() {
 		registers[register_destination] = (program_counter << 2) + (instruction & 0xfffff000);
 		break;
 	// store
-	case 0b01000000:// sb
-		{
-			int32_t addr = registers[register_source1] + (((int32_t)instruction >> 25) << 5 | register_destination);
-			if (addr < 0 || addr >= MEMORY_SIZE) goto error_oob;
-			memory8[addr] = registers[register_source2];
-		}
+	case 0b01000000: {// sb
+		int32_t addr = registers[register_source1] + (((int32_t)instruction >> 25) << 5 | register_destination);
+		if (addr < 0 || addr >= MEMORY_SIZE) goto error_oob;
+		memory8[addr] = registers[register_source2];
 		break;
-	case 0b01000001:// sh
-		{
-			int32_t addr = registers[register_source1] + (((int32_t)instruction >> 25) << 5 | register_destination);
-			if (addr < 0 || addr > MEMORY_SIZE - 2) goto error_oob;
-			memory16[addr >> 1] = registers[register_source2];
-		}
+	}
+	case 0b01000001: {// sh
+		int32_t addr = registers[register_source1] + (((int32_t)instruction >> 25) << 5 | register_destination);
+		if (addr < 0 || addr > MEMORY_SIZE - 2) goto error_oob;
+		memory16[addr >> 1] = registers[register_source2];
 		break;
-	case 0b01000010:// sw
-		{
-			int32_t addr = registers[register_source1] + (((int32_t)instruction >> 25) << 5 | register_destination);
-			if (addr < 0 || addr > MEMORY_SIZE - 4) goto error_oob;
-			memory32[addr >> 2] = registers[register_source2];
-		}
+	}
+	case 0b01000010: {// sw
+		int32_t addr = registers[register_source1] + (((int32_t)instruction >> 25) << 5 | register_destination);
+		if (addr < 0 || addr > MEMORY_SIZE - 4) goto error_oob;
+		memory32[addr >> 2] = registers[register_source2];
 		break;
+	}
 	// register+register
 	case 0b01100000: {// add/sub
 		registers[register_destination] = (
