@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <stdbool.h>
 
 #define MEMORY_SIZE 64 * 1024
 
@@ -14,6 +15,10 @@ int32_t *memory32 = (int32_t *) memory8;
 
 // index for 32 bit!
 uint32_t program_counter = 0;
+
+// Exit flag for program termination
+bool program_ended = false;
+const char *error_message = NULL;
 
 void tick() {
 	// make it constant
@@ -116,10 +121,10 @@ void tick() {
 	case 0b01100101: {// srl/sra
 		uint32_t shift_by = registers[register_source2] & 0b11111;
 		if (instruction >> 30) {
-			registers[register_destination] = registers[register_source1] >> shift_by;
+			registers_unsigned[register_destination] = registers_unsigned[register_source1] >> shift_by;
 		}
 		else {
-			registers_unsigned[register_destination] = registers_unsigned[register_source1] >> shift_by;
+			registers[register_destination] = registers[register_source1] >> shift_by;
 		}
 		break;
 	}
@@ -165,8 +170,8 @@ void tick() {
 			if (registers_unsigned[register_source1] >= registers_unsigned[register_source2]) break;
 			goto no_branch;
 		default:
-			fprintf(stderr, "invalid branch condition\n");
-			exit(1);
+			error_message = "invalid branch condition";
+			return;
 		}
 		program_counter = program_counter + ( // 12 bit offset, shifted one to the right
 			(int32_t)(instruction >> 31) << 10 | // 31 -> 10
@@ -188,7 +193,10 @@ void tick() {
 	case 0b11011110:
 	case 0b11011111:
 		// exit on endless loop
-		if (instruction >> 12 == 0) exit(0);
+		if (instruction >> 12 == 0) {
+			program_ended = true;
+			return;
+		}
 		registers[register_destination] = (program_counter + 1) << 2;
 		program_counter = program_counter + ( // 20 bit offset, shifted one to the right
 			(int32_t)(instruction >> 31) << 18 | // 31 -> 19
@@ -198,8 +206,8 @@ void tick() {
 		);
 		return;
 	default:
-		fprintf(stderr, "illegal instruction\n");
-		exit(1);
+		error_message = "illegal instruction";
+		return;
 	}
 
 no_branch:
@@ -225,13 +233,24 @@ int main(int argc, char *argv[]) {
 	clock_t time_start = clock();
 	uint32_t instruction_count = 0;
 	
-	while (instruction_count < 10000000) {
+	do {
 		tick();
-		instruction_count++;
-	}
+		
+		if (program_ended) {
+			printf("-----\nprogram ended\n");
+			break;
+		}
+		
+		if (error_message != NULL) {
+			printf("-----\nprogram failed: %s\n", error_message);
+			break;
+		}
+	} while (++instruction_count < 10000000);
 	
-	// If we reach here, program timed out
-	printf("-----\nprogram timed out\n");
+	// If we reach here without break, program timed out
+	if (!program_ended && error_message == NULL) {
+		printf("-----\nprogram timed out\n");
+	}
 	
 	clock_t time_end = clock();
 	double runtime = ((double)(time_end - time_start)) / CLOCKS_PER_SEC * 1000;
