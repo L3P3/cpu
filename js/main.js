@@ -2,6 +2,13 @@
 
 const MEMORY_SIZE = 64 * 1024;
 
+// Out of bounds bit masks for memory access validation
+// Any address with these bits set is out of bounds
+const OOB_BITS_8 = ~(MEMORY_SIZE - 1);        // byte access
+const OOB_BITS_16 = ~(MEMORY_SIZE - 1 - 1);   // halfword access
+const OOB_BITS_32 = ~(MEMORY_SIZE - 1 - 3);   // word access
+const OOB_BITS_PC = ~(MEMORY_SIZE / 4 - 1);   // program counter (word index)
+
 const registers = new Int32Array(32);
 const registers_unsigned = new Uint32Array(registers.buffer);
 const memory8 = new Uint8Array(MEMORY_SIZE);
@@ -30,31 +37,31 @@ function tick() {
 	// load
 	case 0b00000000: {// lb
 		const addr = registers[register_source1] + (instruction >> 20) | 0;
-		if (addr < 0 || addr >= MEMORY_SIZE) throw 'out of bounds';
+		if (addr & OOB_BITS_8) throw 'out of bounds';
 		registers[register_destination] = memory8[addr] << 24 >> 24;
 		break;
 	}
 	case 0b00000001: {// lh
 		const addr = registers[register_source1] + (instruction >> 20) | 0;
-		if (addr < 0 || addr > MEMORY_SIZE - 2) throw 'out of bounds';
+		if (addr & OOB_BITS_16) throw 'out of bounds';
 		registers[register_destination] = memory16[addr >>> 1] << 16 >> 16;
 		break;
 	}
 	case 0b00000010: {// lw
 		const addr = registers[register_source1] + (instruction >> 20) | 0;
-		if (addr < 0 || addr > MEMORY_SIZE - 4) throw 'out of bounds';
+		if (addr & OOB_BITS_32) throw 'out of bounds';
 		registers[register_destination] = memory32[addr >>> 2];
 		break;
 	}
 	case 0b00000100: {// lbu
 		const addr = registers[register_source1] + (instruction >> 20) | 0;
-		if (addr < 0 || addr >= MEMORY_SIZE) throw 'out of bounds';
+		if (addr & OOB_BITS_8) throw 'out of bounds';
 		registers[register_destination] = memory8[addr];
 		break;
 	}
 	case 0b00000101: {// lhu
 		const addr = registers[register_source1] + (instruction >> 20) | 0;
-		if (addr < 0 || addr > MEMORY_SIZE - 2) throw 'out of bounds';
+		if (addr & OOB_BITS_16) throw 'out of bounds';
 		registers[register_destination] = memory16[addr >>> 1];
 		break;
 	}
@@ -97,19 +104,19 @@ function tick() {
 	// store
 	case 0b01000000: {// sb
 		const addr = registers[register_source1] + (instruction >> 25 << 5 | register_destination) | 0;
-		if (addr < 0 || addr >= MEMORY_SIZE) throw 'out of bounds';
+		if (addr & OOB_BITS_8) throw 'out of bounds';
 		memory8[addr] = registers[register_source2];
 		break;
 	}
 	case 0b01000001: {// sh
 		const addr = registers[register_source1] + (instruction >> 25 << 5 | register_destination) | 0;
-		if (addr < 0 || addr > MEMORY_SIZE - 2) throw 'out of bounds';
+		if (addr & OOB_BITS_16) throw 'out of bounds';
 		memory16[addr >>> 1] = registers[register_source2];
 		break;
 	}
 	case 0b01000010: {// sw
 		const addr = registers[register_source1] + (instruction >> 25 << 5 | register_destination) | 0;
-		if (addr < 0 || addr > MEMORY_SIZE - 4) throw 'out of bounds';
+		if (addr & OOB_BITS_32) throw 'out of bounds';
 		memory32[addr >>> 2] = registers[register_source2];
 		break;
 	}
@@ -193,12 +200,12 @@ function tick() {
 			instruction >>> 25 << 3 | // 30-25 -> 8-3
 			register_destination >>> 2 // dest -> 2-0
 		) | 0;
-		if (program_counter >= MEMORY_SIZE / 4) throw 'out of bounds';
+		if (program_counter & OOB_BITS_PC) throw 'out of bounds';
 		return;
 	case 0b11001000:// jalr
 		registers[register_destination] = program_counter + 1 << 2;
 		program_counter = registers[register_source1] + (instruction >> 20) >>> 2;
-		if (program_counter >= MEMORY_SIZE / 4) throw 'out of bounds';
+		if (program_counter & OOB_BITS_PC) throw 'out of bounds';
 		return;
 	case 0b11011000:// jal
 	case 0b11011001:
@@ -217,14 +224,14 @@ function tick() {
 			(instruction >>> 20 & 0x1) << 9 | // 20 -> 10
 			(instruction >>> 22 & 0x3ff) // 30-21 -> 9-0
 		) | 0;
-		if (program_counter >= MEMORY_SIZE / 4) throw 'out of bounds';
+		if (program_counter & OOB_BITS_PC) throw 'out of bounds';
 		return;
 	default:
 		throw 'illegal instruction';
 	}
 
 	program_counter = program_counter + 1 | 0;
-	if (program_counter >= MEMORY_SIZE / 4) throw 'out of bounds';
+	if (program_counter & OOB_BITS_PC) throw 'out of bounds';
 }
 
 // load program
