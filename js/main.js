@@ -74,7 +74,7 @@ function tick() {
 	case 0b00101101:
 	case 0b00101110:
 	case 0b00101111:
-		register[register_destination] = (program_counter << 2) + (instruction & 0xfffff000) | 0;
+		registers[register_destination] = (program_counter << 2) + (instruction & 0xfffff000) | 0;
 		break;
 	// store
 	case 0b01000000:// sb
@@ -109,10 +109,10 @@ function tick() {
 	case 0b01100101: {// srl/sra
 		const shift_by = registers[register_source2] & 0b11111;
 		if (instruction >>> 30) {
-			registers_unsigned[register_destination] = registers_unsigned[register_source1] >>> shift_by;
+			registers[register_destination] = registers[register_source1] >> shift_by;
 		}
 		else {
-			registers[register_destination] = registers[register_source1] >> shift_by;
+			registers_unsigned[register_destination] = registers_unsigned[register_source1] >>> shift_by;
 		}
 		break;
 	}
