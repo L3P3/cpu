@@ -39,51 +39,51 @@ void tick() {
 	case 0b00000000:// lb
 		{
 			int32_t addr = registers[register_source1] + ((int32_t)instruction >> 20);
-			if (addr >= 0 && addr < MEMORY_SIZE) {
-				registers[register_destination] = (int8_t) memory8[addr];
-			} else {
-				registers[register_destination] = 0;
+			if (addr < 0 || addr >= MEMORY_SIZE) {
+				error_message = "memory read out of bounds";
+				return;
 			}
+			registers[register_destination] = (int8_t) memory8[addr];
 		}
 		break;
 	case 0b00000001:// lh
 		{
 			int32_t addr = registers[register_source1] + ((int32_t)instruction >> 20);
-			if (addr >= 0 && addr <= MEMORY_SIZE - 2) {
-				registers[register_destination] = (int16_t) memory16[addr >> 1];
-			} else {
-				registers[register_destination] = 0;
+			if (addr < 0 || addr > MEMORY_SIZE - 2) {
+				error_message = "memory read out of bounds";
+				return;
 			}
+			registers[register_destination] = (int16_t) memory16[addr >> 1];
 		}
 		break;
 	case 0b00000010:// lw
 		{
 			int32_t addr = registers[register_source1] + ((int32_t)instruction >> 20);
-			if (addr >= 0 && addr <= MEMORY_SIZE - 4) {
-				registers[register_destination] = memory32[addr >> 2];
-			} else {
-				registers[register_destination] = 0;
+			if (addr < 0 || addr > MEMORY_SIZE - 4) {
+				error_message = "memory read out of bounds";
+				return;
 			}
+			registers[register_destination] = memory32[addr >> 2];
 		}
 		break;
 	case 0b00000100:// lbu
 		{
 			int32_t addr = registers[register_source1] + ((int32_t)instruction >> 20);
-			if (addr >= 0 && addr < MEMORY_SIZE) {
-				registers[register_destination] = memory8[addr];
-			} else {
-				registers[register_destination] = 0;
+			if (addr < 0 || addr >= MEMORY_SIZE) {
+				error_message = "memory read out of bounds";
+				return;
 			}
+			registers[register_destination] = memory8[addr];
 		}
 		break;
 	case 0b00000101:// lhu
 		{
 			int32_t addr = registers[register_source1] + ((int32_t)instruction >> 20);
-			if (addr >= 0 && addr <= MEMORY_SIZE - 2) {
-				registers[register_destination] = memory16[addr >> 1];
-			} else {
-				registers[register_destination] = 0;
+			if (addr < 0 || addr > MEMORY_SIZE - 2) {
+				error_message = "memory read out of bounds";
+				return;
 			}
+			registers[register_destination] = memory16[addr >> 1];
 		}
 		break;
 	// fence
@@ -126,25 +126,31 @@ void tick() {
 	case 0b01000000:// sb
 		{
 			int32_t addr = registers[register_source1] + (((int32_t)instruction >> 25) << 5 | register_destination);
-			if (addr >= 0 && addr < MEMORY_SIZE) {
-				memory8[addr] = registers[register_source2];
+			if (addr < 0 || addr >= MEMORY_SIZE) {
+				error_message = "memory write out of bounds";
+				return;
 			}
+			memory8[addr] = registers[register_source2];
 		}
 		break;
 	case 0b01000001:// sh
 		{
 			int32_t addr = registers[register_source1] + (((int32_t)instruction >> 25) << 5 | register_destination);
-			if (addr >= 0 && addr <= MEMORY_SIZE - 2) {
-				memory16[addr >> 1] = registers[register_source2];
+			if (addr < 0 || addr > MEMORY_SIZE - 2) {
+				error_message = "memory write out of bounds";
+				return;
 			}
+			memory16[addr >> 1] = registers[register_source2];
 		}
 		break;
 	case 0b01000010:// sw
 		{
 			int32_t addr = registers[register_source1] + (((int32_t)instruction >> 25) << 5 | register_destination);
-			if (addr >= 0 && addr <= MEMORY_SIZE - 4) {
-				memory32[addr >> 2] = registers[register_source2];
+			if (addr < 0 || addr > MEMORY_SIZE - 4) {
+				error_message = "memory write out of bounds";
+				return;
 			}
+			memory32[addr >> 2] = registers[register_source2];
 		}
 		break;
 	// register+register

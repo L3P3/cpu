@@ -26,19 +26,39 @@ function tick() {
 	opcode: switch ((instruction >>> 2 << 3) & 0xff | funct3) {
 	// load
 	case 0b00000000:// lb
-		registers[register_destination] = memory8[registers[register_source1] + (instruction >> 20)] << 24 >> 24;
+		{
+			const addr = registers[register_source1] + (instruction >> 20) | 0;
+			if (addr < 0 || addr >= MEMORY_SIZE) throw 'memory read out of bounds';
+			registers[register_destination] = memory8[addr] << 24 >> 24;
+		}
 		break;
 	case 0b00000001:// lh
-		registers[register_destination] = memory16[registers[register_source1] + (instruction >> 20) >>> 1] << 16 >> 16;
+		{
+			const addr = registers[register_source1] + (instruction >> 20) | 0;
+			if (addr < 0 || addr > MEMORY_SIZE - 2) throw 'memory read out of bounds';
+			registers[register_destination] = memory16[addr >>> 1] << 16 >> 16;
+		}
 		break;
 	case 0b00000010:// lw
-		registers[register_destination] = memory32[registers[register_source1] + (instruction >> 20) >>> 2];
+		{
+			const addr = registers[register_source1] + (instruction >> 20) | 0;
+			if (addr < 0 || addr > MEMORY_SIZE - 4) throw 'memory read out of bounds';
+			registers[register_destination] = memory32[addr >>> 2];
+		}
 		break;
 	case 0b00000100:// lbu
-		registers[register_destination] = memory8[registers[register_source1] + (instruction >> 20)];
+		{
+			const addr = registers[register_source1] + (instruction >> 20) | 0;
+			if (addr < 0 || addr >= MEMORY_SIZE) throw 'memory read out of bounds';
+			registers[register_destination] = memory8[addr];
+		}
 		break;
 	case 0b00000101:// lhu
-		registers[register_destination] = memory16[registers[register_source1] + (instruction >> 20) >>> 1];
+		{
+			const addr = registers[register_source1] + (instruction >> 20) | 0;
+			if (addr < 0 || addr > MEMORY_SIZE - 2) throw 'memory read out of bounds';
+			registers[register_destination] = memory16[addr >>> 1];
+		}
 		break;
 	// fence
 	// register+immediate
@@ -78,13 +98,25 @@ function tick() {
 		break;
 	// store
 	case 0b01000000:// sb
-		memory8[registers[register_source1] + (instruction >> 25 << 5 | register_destination)] = registers[register_source2];
+		{
+			const addr = registers[register_source1] + (instruction >> 25 << 5 | register_destination) | 0;
+			if (addr < 0 || addr >= MEMORY_SIZE) throw 'memory write out of bounds';
+			memory8[addr] = registers[register_source2];
+		}
 		break;
 	case 0b01000001:// sh
-		memory16[(registers[register_source1] + (instruction >> 25 << 5 | register_destination)) >>> 1] = registers[register_source2];
+		{
+			const addr = registers[register_source1] + (instruction >> 25 << 5 | register_destination) | 0;
+			if (addr < 0 || addr > MEMORY_SIZE - 2) throw 'memory write out of bounds';
+			memory16[addr >>> 1] = registers[register_source2];
+		}
 		break;
 	case 0b01000010:// sw
-		memory32[(registers[register_source1] + (instruction >> 25 << 5 | register_destination)) >>> 2] = registers[register_source2];
+		{
+			const addr = registers[register_source1] + (instruction >> 25 << 5 | register_destination) | 0;
+			if (addr < 0 || addr > MEMORY_SIZE - 4) throw 'memory write out of bounds';
+			memory32[addr >>> 2] = registers[register_source2];
+		}
 		break;
 	// register+register
 	case 0b01100000:// add/sub
