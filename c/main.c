@@ -24,7 +24,6 @@ void tick() {
 	// make it constant
 	registers[0] = 0;
 
-	if (program_counter >= MEMORY_SIZE / 4) goto error_oob;
 	uint32_t instruction = memory32[program_counter];
 
 	uint32_t funct3 = (instruction >> 12) & 0b111;
@@ -206,16 +205,18 @@ void tick() {
 			error_message = "invalid branch condition";
 			return;
 		}
-		program_counter = (program_counter + ( // 12 bit offset, shifted one to the right
+		program_counter = program_counter + ( // 12 bit offset, shifted one to the right
 			((int32_t)instruction >> 31) << 10 | // 31 -> 10
 			(register_destination & 0x1) << 9 | // dest -> 9
 			(instruction >> 25) << 3 | // 30-25 -> 8-3
 			register_destination >> 2 // dest -> 2-0
-		)) & ((MEMORY_SIZE / 4) - 1);
+		);
+		if (program_counter >= MEMORY_SIZE / 4) goto error_oob;
 		return;
 	case 0b11001000:// jalr
 		registers[register_destination] = (program_counter + 1) << 2;
-		program_counter = ((registers[register_source1] + ((int32_t)instruction >> 20)) >> 2) & ((MEMORY_SIZE / 4) - 1);
+		program_counter = (registers[register_source1] + ((int32_t)instruction >> 20)) >> 2;
+		if (program_counter >= MEMORY_SIZE / 4) goto error_oob;
 		return;
 	case 0b11011000:// jal
 	case 0b11011001:
@@ -231,12 +232,13 @@ void tick() {
 			return;
 		}
 		registers[register_destination] = (program_counter + 1) << 2;
-		program_counter = (program_counter + ( // 20 bit offset, shifted one to the right
+		program_counter = program_counter + ( // 20 bit offset, shifted one to the right
 			((int32_t)instruction >> 31) << 18 | // 31 -> 19
 			((instruction >> 12) & 0xff) << 10 | // 19-12 -> 18-11
 			((instruction >> 20) & 0x1) << 9 | // 20 -> 10
 			((instruction >> 22) & 0x3ff) // 30-21 -> 9-0
-		)) & ((MEMORY_SIZE / 4) - 1);
+		);
+		if (program_counter >= MEMORY_SIZE / 4) goto error_oob;
 		return;
 	default:
 		error_message = "illegal instruction";
@@ -244,7 +246,8 @@ void tick() {
 	}
 
 no_branch:
-	program_counter = (program_counter + 1) & ((MEMORY_SIZE / 4) - 1);
+	program_counter = program_counter + 1;
+	if (program_counter >= MEMORY_SIZE / 4) goto error_oob;
 	return;
 
 error_oob:
