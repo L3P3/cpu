@@ -37,45 +37,80 @@ void tick() {
 	switch (opcode_combined) {
 	// load
 	case 0b00000000:// lb
-		registers[register_destination] = (int8_t) memory8[registers[register_source1] + (int32_t)(instruction >> 20)];
+		{
+			int32_t addr = registers[register_source1] + ((int32_t)instruction >> 20);
+			if (addr >= 0 && addr < MEMORY_SIZE) {
+				registers[register_destination] = (int8_t) memory8[addr];
+			} else {
+				registers[register_destination] = 0;
+			}
+		}
 		break;
 	case 0b00000001:// lh
-		registers[register_destination] = (int16_t) memory16[(registers[register_source1] + (int32_t)(instruction >> 20)) >> 1];
+		{
+			int32_t addr = registers[register_source1] + ((int32_t)instruction >> 20);
+			if (addr >= 0 && addr < MEMORY_SIZE - 1) {
+				registers[register_destination] = (int16_t) memory16[addr >> 1];
+			} else {
+				registers[register_destination] = 0;
+			}
+		}
 		break;
 	case 0b00000010:// lw
-		registers[register_destination] = memory32[(registers[register_source1] + (int32_t)(instruction >> 20)) >> 2];
+		{
+			int32_t addr = registers[register_source1] + ((int32_t)instruction >> 20);
+			if (addr >= 0 && addr < MEMORY_SIZE - 3) {
+				registers[register_destination] = memory32[addr >> 2];
+			} else {
+				registers[register_destination] = 0;
+			}
+		}
 		break;
 	case 0b00000100:// lbu
-		registers[register_destination] = memory8[registers[register_source1] + (int32_t)(instruction >> 20)];
+		{
+			int32_t addr = registers[register_source1] + ((int32_t)instruction >> 20);
+			if (addr >= 0 && addr < MEMORY_SIZE) {
+				registers[register_destination] = memory8[addr];
+			} else {
+				registers[register_destination] = 0;
+			}
+		}
 		break;
 	case 0b00000101:// lhu
-		registers[register_destination] = memory16[(registers[register_source1] + (int32_t)(instruction >> 20)) >> 1];
+		{
+			int32_t addr = registers[register_source1] + ((int32_t)instruction >> 20);
+			if (addr >= 0 && addr < MEMORY_SIZE - 1) {
+				registers[register_destination] = memory16[addr >> 1];
+			} else {
+				registers[register_destination] = 0;
+			}
+		}
 		break;
 	// fence
 	// register+immediate
 	case 0b00100000:// addi
-		registers[register_destination] = registers[register_source1] + (int32_t)(instruction >> 20);
+		registers[register_destination] = registers[register_source1] + ((int32_t)instruction >> 20);
 		break;
 	case 0b00100001:// slli
 		registers[register_destination] = registers[register_source1] << (instruction >> 20);
 		break;
 	case 0b00100010:// slti
-		registers[register_destination] = registers[register_source1] < (int32_t)(instruction >> 20) ? 1 : 0;
+		registers[register_destination] = registers[register_source1] < ((int32_t)instruction >> 20) ? 1 : 0;
 		break;
 	case 0b00100011:// sltiu
 		registers[register_destination] = registers_unsigned[register_source1] < (instruction >> 20) ? 1 : 0;
 		break;
 	case 0b00100100:// xori
-		registers[register_destination] = registers[register_source1] ^ (int32_t)(instruction >> 20);
+		registers[register_destination] = registers[register_source1] ^ ((int32_t)instruction >> 20);
 		break;
 	case 0b00100101:// srli
 		registers_unsigned[register_destination] = registers_unsigned[register_source1] >> (instruction >> 20);
 		break;
 	case 0b00100110:// ori
-		registers[register_destination] = registers[register_source1] | (int32_t)(instruction >> 20);
+		registers[register_destination] = registers[register_source1] | ((int32_t)instruction >> 20);
 		break;
 	case 0b00100111:// andi
-		registers[register_destination] = registers[register_source1] & (int32_t)(instruction >> 20);
+		registers[register_destination] = registers[register_source1] & ((int32_t)instruction >> 20);
 		break;
 	case 0b00101000:// auipc
 	case 0b00101001:
@@ -89,13 +124,28 @@ void tick() {
 		break;
 	// store
 	case 0b01000000:// sb
-		memory8[registers[register_source1] + ((int32_t)(instruction >> 25) << 5 | register_destination)] = registers[register_source2];
+		{
+			int32_t addr = registers[register_source1] + (((int32_t)instruction >> 25) << 5 | register_destination);
+			if (addr >= 0 && addr < MEMORY_SIZE) {
+				memory8[addr] = registers[register_source2];
+			}
+		}
 		break;
 	case 0b01000001:// sh
-		memory16[(registers[register_source1] + ((int32_t)(instruction >> 25) << 5 | register_destination)) >> 1] = registers[register_source2];
+		{
+			int32_t addr = registers[register_source1] + (((int32_t)instruction >> 25) << 5 | register_destination);
+			if (addr >= 0 && addr < MEMORY_SIZE - 1) {
+				memory16[addr >> 1] = registers[register_source2];
+			}
+		}
 		break;
 	case 0b01000010:// sw
-		memory32[(registers[register_source1] + ((int32_t)(instruction >> 25) << 5 | register_destination)) >> 2] = registers[register_source2];
+		{
+			int32_t addr = registers[register_source1] + (((int32_t)instruction >> 25) << 5 | register_destination);
+			if (addr >= 0 && addr < MEMORY_SIZE - 3) {
+				memory32[addr >> 2] = registers[register_source2];
+			}
+		}
 		break;
 	// register+register
 	case 0b01100000: {// add/sub
@@ -173,16 +223,16 @@ void tick() {
 			error_message = "invalid branch condition";
 			return;
 		}
-		program_counter = program_counter + ( // 12 bit offset, shifted one to the right
-			(int32_t)(instruction >> 31) << 10 | // 31 -> 10
+		program_counter = (program_counter + ( // 12 bit offset, shifted one to the right
+			((int32_t)instruction >> 31) << 10 | // 31 -> 10
 			(register_destination & 0x1) << 9 | // dest -> 9
 			(instruction >> 25) << 3 | // 30-25 -> 8-3
 			register_destination >> 2 // dest -> 2-0
-		);
+		)) & ((MEMORY_SIZE / 4) - 1);
 		return;
 	case 0b11001000:// jalr
 		registers[register_destination] = (program_counter + 1) << 2;
-		program_counter = (registers[register_source1] + (int32_t)(instruction >> 20)) >> 2;
+		program_counter = ((registers[register_source1] + ((int32_t)instruction >> 20)) >> 2) & ((MEMORY_SIZE / 4) - 1);
 		return;
 	case 0b11011000:// jal
 	case 0b11011001:
@@ -198,12 +248,12 @@ void tick() {
 			return;
 		}
 		registers[register_destination] = (program_counter + 1) << 2;
-		program_counter = program_counter + ( // 20 bit offset, shifted one to the right
-			(int32_t)(instruction >> 31) << 18 | // 31 -> 19
+		program_counter = (program_counter + ( // 20 bit offset, shifted one to the right
+			((int32_t)instruction >> 31) << 18 | // 31 -> 19
 			((instruction >> 12) & 0xff) << 10 | // 19-12 -> 18-11
 			((instruction >> 20) & 0x1) << 9 | // 20 -> 10
 			((instruction >> 22) & 0x3ff) // 30-21 -> 9-0
-		);
+		)) & ((MEMORY_SIZE / 4) - 1);
 		return;
 	default:
 		error_message = "illegal instruction";
@@ -211,7 +261,7 @@ void tick() {
 	}
 
 no_branch:
-	program_counter = program_counter + 1;
+	program_counter = (program_counter + 1) & ((MEMORY_SIZE / 4) - 1);
 }
 
 int main(int argc, char *argv[]) {
