@@ -24,6 +24,9 @@ function tick() {
 	const register_source1 = (instruction >>> 15) & 0b11111;
 	const register_source2 = (instruction >>> 20) & 0b11111;
 
+	// Note: JavaScript's >> operator is arithmetic right shift (sign-preserving).
+	// Using (instruction >> 20) correctly sign-extends 12-bit immediates.
+	// The | 0 suffix converts to 32-bit signed integer.
 	opcode: switch ((instruction >>> 2 << 3) & 0xff | funct3) {
 	// load
 	case 0b00000000:// lb
