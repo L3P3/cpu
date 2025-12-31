@@ -7,6 +7,16 @@
 
 #define MEMORY_SIZE 64 * 1024
 
+// Out of bounds bit masks for memory access validation
+// Any address with these bits set is out of bounds
+#define OOB_BITS_8  (~(MEMORY_SIZE - 1))        // 0xFFFF0000 - byte access
+#define OOB_BITS_16 (~(MEMORY_SIZE - 1 - 1))    // 0xFFFF0000 - halfword access  
+#define OOB_BITS_32 (~(MEMORY_SIZE - 1 - 3))    // 0xFFFF0000 - word access
+#define OOB_BITS_PC (~(MEMORY_SIZE / 4 - 1))    // 0xFFFFC000 - program counter (word index)
+
+// Branch prediction hint for unlikely conditions
+#define unlikely(x) __builtin_expect(!!(x), 0)
+
 int32_t registers[32];
 uint32_t *registers_unsigned = (uint32_t *) registers;
 uint8_t memory8[MEMORY_SIZE];
@@ -38,31 +48,31 @@ void tick() {
 	// load
 	case 0b00000000: {// lb
 		int32_t addr = registers[register_source1] + ((int32_t)instruction >> 20);
-		if (addr < 0 || addr >= MEMORY_SIZE) goto error_oob;
+		if (unlikely(addr & OOB_BITS_8)) goto error_oob;
 		registers[register_destination] = (int8_t) memory8[addr];
 		break;
 	}
 	case 0b00000001: {// lh
 		int32_t addr = registers[register_source1] + ((int32_t)instruction >> 20);
-		if (addr < 0 || addr > MEMORY_SIZE - 2) goto error_oob;
+		if (unlikely(addr & OOB_BITS_16)) goto error_oob;
 		registers[register_destination] = (int16_t) memory16[addr >> 1];
 		break;
 	}
 	case 0b00000010: {// lw
 		int32_t addr = registers[register_source1] + ((int32_t)instruction >> 20);
-		if (addr < 0 || addr > MEMORY_SIZE - 4) goto error_oob;
+		if (unlikely(addr & OOB_BITS_32)) goto error_oob;
 		registers[register_destination] = memory32[addr >> 2];
 		break;
 	}
 	case 0b00000100: {// lbu
 		int32_t addr = registers[register_source1] + ((int32_t)instruction >> 20);
-		if (addr < 0 || addr >= MEMORY_SIZE) goto error_oob;
+		if (unlikely(addr & OOB_BITS_8)) goto error_oob;
 		registers[register_destination] = memory8[addr];
 		break;
 	}
 	case 0b00000101: {// lhu
 		int32_t addr = registers[register_source1] + ((int32_t)instruction >> 20);
-		if (addr < 0 || addr > MEMORY_SIZE - 2) goto error_oob;
+		if (unlikely(addr & OOB_BITS_16)) goto error_oob;
 		registers[register_destination] = memory16[addr >> 1];
 		break;
 	}
@@ -105,19 +115,19 @@ void tick() {
 	// store
 	case 0b01000000: {// sb
 		int32_t addr = registers[register_source1] + (((int32_t)instruction >> 25) << 5 | register_destination);
-		if (addr < 0 || addr >= MEMORY_SIZE) goto error_oob;
+		if (unlikely(addr & OOB_BITS_8)) goto error_oob;
 		memory8[addr] = registers[register_source2];
 		break;
 	}
 	case 0b01000001: {// sh
 		int32_t addr = registers[register_source1] + (((int32_t)instruction >> 25) << 5 | register_destination);
-		if (addr < 0 || addr > MEMORY_SIZE - 2) goto error_oob;
+		if (unlikely(addr & OOB_BITS_16)) goto error_oob;
 		memory16[addr >> 1] = registers[register_source2];
 		break;
 	}
 	case 0b01000010: {// sw
 		int32_t addr = registers[register_source1] + (((int32_t)instruction >> 25) << 5 | register_destination);
-		if (addr < 0 || addr > MEMORY_SIZE - 4) goto error_oob;
+		if (unlikely(addr & OOB_BITS_32)) goto error_oob;
 		memory32[addr >> 2] = registers[register_source2];
 		break;
 	}
@@ -203,12 +213,12 @@ void tick() {
 			(instruction >> 25) << 3 | // 30-25 -> 8-3
 			register_destination >> 2 // dest -> 2-0
 		);
-		if (program_counter >= MEMORY_SIZE / 4) goto error_oob;
+		if (unlikely(program_counter & OOB_BITS_PC)) goto error_oob;
 		return;
 	case 0b11001000:// jalr
 		registers[register_destination] = (program_counter + 1) << 2;
 		program_counter = (registers[register_source1] + ((int32_t)instruction >> 20)) >> 2;
-		if (program_counter >= MEMORY_SIZE / 4) goto error_oob;
+		if (unlikely(program_counter & OOB_BITS_PC)) goto error_oob;
 		return;
 	case 0b11011000:// jal
 	case 0b11011001:
@@ -230,7 +240,7 @@ void tick() {
 			((instruction >> 20) & 0x1) << 9 | // 20 -> 10
 			((instruction >> 22) & 0x3ff) // 30-21 -> 9-0
 		);
-		if (program_counter >= MEMORY_SIZE / 4) goto error_oob;
+		if (unlikely(program_counter & OOB_BITS_PC)) goto error_oob;
 		return;
 	default:
 		error_message = "illegal instruction";
@@ -239,7 +249,7 @@ void tick() {
 
 no_branch:
 	program_counter = program_counter + 1;
-	if (program_counter >= MEMORY_SIZE / 4) goto error_oob;
+	if (unlikely(program_counter & OOB_BITS_PC)) goto error_oob;
 	return;
 
 error_oob:
