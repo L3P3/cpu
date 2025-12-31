@@ -15,7 +15,6 @@ function tick() {
 	// make it constant
 	registers[0] = 0;
 
-	if (program_counter >= MEMORY_SIZE / 4) throw 'out of bounds';
 	const instruction = memory32[program_counter];
 
 	const funct3 = (instruction >>> 12) & 0b111;
@@ -202,10 +201,12 @@ function tick() {
 			instruction >>> 25 << 3 | // 30-25 -> 8-3
 			register_destination >>> 2 // dest -> 2-0
 		) | 0;
+		if (program_counter >= MEMORY_SIZE / 4) throw 'out of bounds';
 		return;
 	case 0b11001000:// jalr
 		registers[register_destination] = program_counter + 1 << 2;
 		program_counter = registers[register_source1] + (instruction >> 20) >>> 2;
+		if (program_counter >= MEMORY_SIZE / 4) throw 'out of bounds';
 		return;
 	case 0b11011000:// jal
 	case 0b11011001:
@@ -224,12 +225,14 @@ function tick() {
 			(instruction >>> 20 & 0x1) << 9 | // 20 -> 10
 			(instruction >>> 22 & 0x3ff) // 30-21 -> 9-0
 		) | 0;
+		if (program_counter >= MEMORY_SIZE / 4) throw 'out of bounds';
 		return;
 	default:
 		throw 'illegal instruction';
 	}
 
 	program_counter = program_counter + 1 | 0;
+	if (program_counter >= MEMORY_SIZE / 4) throw 'out of bounds';
 }
 
 // load program
