@@ -1,0 +1,11 @@
+[package]
+name = "cpu"
+version = "0.0.1"
+edition = "2021"
+authors = ["L3P3 <dev@l3p3.de>"]
+license = "Zlib"
+description = "risc-v emulator in rust"
+
+[[bin]]
+name = "cpu"
+path = "main.rs"

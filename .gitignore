@@ -1,3 +1,5 @@
 c/main
 tests/*.o
 tests/*.bin
+rust/target
+rust/Cargo.lock
