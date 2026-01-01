@@ -1,4 +1,4 @@
-# Expected result: x10 = 0x80, x11 = 0x08, x12 = 0x01, x13 = 0x100, x14 = 0x01, x15 = 0xffffffff
+# Expected result: x10 = 0x80, x11 = 0x08, x12 = 0xffffffff, x13 = 0x100, x14 = 0x01, x15 = 0xffffffff
 _start:
 	# Test slli (shift left logical immediate)
 	li x10, 0x08
@@ -8,9 +8,9 @@ _start:
 	li x11, 0x80
 	srli x11, x11, 4        # x11 = 0x80 >> 4 = 0x08
 	
-	# Test srli with larger value
-	li x12, 0x10
-	srli x12, x12, 4        # x12 = 0x10 >> 4 = 0x01
+	# Test srai (shift right arithmetic immediate)
+	li x12, -2              # 0xfffffffe
+	srai x12, x12, 1        # x12 = -2 >> 1 = -1 (0xffffffff)
 	
 	# Test sll (shift left logical register)
 	li x13, 0x10

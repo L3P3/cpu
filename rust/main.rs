@@ -179,9 +179,15 @@ impl CPU {
                     self.registers[register_source1] ^ ((instruction as i32) >> 20);
             }
             0b00100101 => {
-                // srli
-                self.registers[register_destination] =
-                    (self.registers_unsigned(register_source1) >> (instruction >> 20)) as i32;
+                // srli/srai
+                let shift_by = instruction >> 20;
+                if instruction >> 30 != 0 {
+                    self.registers[register_destination] =
+                        self.registers[register_source1] >> shift_by;
+                } else {
+                    self.registers[register_destination] =
+                        (self.registers_unsigned(register_source1) >> shift_by) as i32;
+                }
             }
             0b00100110 => {
                 // ori
