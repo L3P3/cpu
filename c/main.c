@@ -274,7 +274,7 @@ int main(int argc, char *argv[]) {
 		return 1;
 	}
 	
-	fread(memory8, 1, MEMORY_SIZE, file);
+	(void)fread(memory8, 1, MEMORY_SIZE, file);
 	fclose(file);
 	
 	printf("running\n");
