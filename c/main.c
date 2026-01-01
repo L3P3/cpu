@@ -82,7 +82,7 @@ void tick() {
 		registers[register_destination] = registers[register_source1] + ((int32_t)instruction >> 20);
 		break;
 	case 0b00100001:// slli
-		registers[register_destination] = registers[register_source1] << (instruction >> 20);
+		registers[register_destination] = registers[register_source1] << ((instruction >> 20) & 0b11111);
 		break;
 	case 0b00100010:// slti
 		registers[register_destination] = registers[register_source1] < ((int32_t)instruction >> 20) ? 1 : 0;
@@ -94,7 +94,7 @@ void tick() {
 		registers[register_destination] = registers[register_source1] ^ ((int32_t)instruction >> 20);
 		break;
 	case 0b00100101: {// srli/srai
-		uint32_t shift_by = instruction >> 20;
+		uint32_t shift_by = (instruction >> 20) & 0b11111;
 		if (instruction >> 30) {
 			registers[register_destination] = registers[register_source1] >> shift_by;
 		}
