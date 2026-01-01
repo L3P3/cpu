@@ -10,7 +10,9 @@ jal_target:
 	addi x10, x10, 1
 	
 	# Test jalr (jump and link register)
-	la x5, jalr_target      # load address using auipc+addi
+	# Calculate address of jalr_target using auipc + addi
+	auipc x5, 0
+	addi x5, x5, 16         # jalr_target is 16 bytes ahead
 	jalr x1, x5, 0
 	j end                   # should not reach here
 	
