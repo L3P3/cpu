@@ -1,3 +1,4 @@
+# Expected result: t0 = 0xffff, memory at [0x20..0x1001e] filled with sequential bytes
 _start:
 #	li t0, 0
 	li t1, 0xffff

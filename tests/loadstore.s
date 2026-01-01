@@ -1,3 +1,4 @@
+# Expected result: t2 = 0xDEADBEEF (loaded from memory), infinite loop storing/loading
 _start:
 	li t0, 0xDEADBEEF
 	li t1, 0x40
