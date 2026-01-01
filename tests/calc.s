@@ -1,3 +1,4 @@
+# Expected result: x5 = 42 (20 + 22), x6 = 0
 _start:
 	li x5, 20
 	li x6, 22
