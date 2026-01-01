@@ -153,7 +153,7 @@ impl CPU {
             0b00100001 => {
                 // slli
                 self.registers[register_destination] =
-                    self.registers[register_source1] << (instruction >> 20);
+                    self.registers[register_source1] << ((instruction >> 20) & 0b11111);
             }
             0b00100010 => {
                 // slti
@@ -180,7 +180,7 @@ impl CPU {
             }
             0b00100101 => {
                 // srli/srai
-                let shift_by = instruction >> 20;
+                let shift_by = (instruction >> 20) & 0b11111;
                 if instruction >> 30 != 0 {
                     self.registers[register_destination] =
                         self.registers[register_source1] >> shift_by;
