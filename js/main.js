@@ -82,9 +82,16 @@ function tick() {
 	case 0b00100100:// xori
 		registers[register_destination] = registers[register_source1] ^ instruction >> 20;
 		break;
-	case 0b00100101:// srli
-		registers_unsigned[register_destination] = registers_unsigned[register_source1] >>> (instruction >>> 20);
+	case 0b00100101: {// srli/srai
+		const shift_by = instruction >>> 20;
+		if (instruction >>> 30) {
+			registers[register_destination] = registers[register_source1] >> shift_by;
+		}
+		else {
+			registers_unsigned[register_destination] = registers_unsigned[register_source1] >>> shift_by;
+		}
 		break;
+	}
 	case 0b00100110:// ori
 		registers[register_destination] = registers[register_source1] | instruction >> 20;
 		break;

@@ -15,7 +15,7 @@ This CPU implements the **RV32I** base instruction set, which includes:
 
 - **Load Instructions**: `lb`, `lh`, `lw`, `lbu`, `lhu`
 - **Store Instructions**: `sb`, `sh`, `sw`
-- **Arithmetic/Logical (Immediate)**: `addi`, `slli`, `slti`, `sltiu`, `xori`, `srli`, `ori`, `andi`
+- **Arithmetic/Logical (Immediate)**: `addi`, `slli`, `slti`, `sltiu`, `xori`, `srli`, `srai`, `ori`, `andi`
 - **Upper Immediate**: `auipc`, `lui`
 - **Arithmetic/Logical (Register)**: `add`, `sub`, `sll`, `slt`, `sltu`, `xor`, `srl`, `sra`, `or`, `and`
 - **Branch Instructions**: `beq`, `bne`, `blt`, `bge`, `bltu`, `bgeu`
