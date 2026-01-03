@@ -262,7 +262,8 @@ pub fn main() !void {
     const runtime = std.time.milliTimestamp() - time_start;
 
     try stdout.print("ran {} instructions in {} ms\n", .{ instruction_count, runtime });
-    try stdout.print("execution speed: {} MHz\n", .{@divTrunc(instruction_count, @as(u32, @intCast(runtime))) / 1000});
+    const speed_mhz = @as(f64, @floatFromInt(instruction_count)) / @as(f64, @floatFromInt(runtime)) / 1000.0;
+    try stdout.print("execution speed: {d:.0} MHz\n", .{speed_mhz});
 
     try stdout.print("registers:\n", .{});
     for (1..32) |i| {
