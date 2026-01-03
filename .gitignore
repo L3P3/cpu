@@ -3,3 +3,5 @@ tests/*.o
 tests/*.bin
 rust/target
 rust/Cargo.lock
+zig/zig-cache
+zig/zig-out
