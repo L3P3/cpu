@@ -68,7 +68,7 @@ function tick() {
 	// fence
 	// register+immediate
 	case 0b00100000:// addi
-		registers[register_destination] = registers[register_source1] + (instruction >> 20) | 0;
+		registers[register_destination] = registers[register_source1] + (instruction >> 20);
 		break;
 	case 0b00100001:// slli
 		registers[register_destination] = registers[register_source1] << ((instruction >>> 20) & 0b11111);
@@ -106,7 +106,7 @@ function tick() {
 	case 0b00101101:
 	case 0b00101110:
 	case 0b00101111:
-		registers[register_destination] = (program_counter << 2) + (instruction & 0xfffff000) | 0;
+		registers[register_destination] = (program_counter << 2) + (instruction & 0xfffff000);
 		break;
 	// store
 	case 0b01000000: {// sb
@@ -131,7 +131,7 @@ function tick() {
 	case 0b01100000:// add/sub/mul
 		registers[register_destination] = (
 			instruction & (1 << 25) // mul?
-			?	registers[register_source1] * registers[register_source2] | 0
+			?	registers[register_source1] * registers[register_source2]
 			: instruction >>> 30 // sub?
 			?	registers[register_source1] - registers[register_source2]
 			:	registers[register_source1] + registers[register_source2]
@@ -140,21 +140,21 @@ function tick() {
 	case 0b01100001:// sll/mulh
 		registers[register_destination] = (
 			instruction & (1 << 25) // mulh?
-			?	Number((BigInt(registers[register_source1]) * BigInt(registers[register_source2])) >> 32n) | 0
+			?	Number((BigInt(registers[register_source1]) * BigInt(registers[register_source2])) >> 32n)
 			:	registers[register_source1] << (registers[register_source2] & 0b11111)
 		);
 		break;
 	case 0b01100010:// slt/mulhsu
 		registers[register_destination] = (
 			instruction & (1 << 25) // mulhsu?
-			?	Number((BigInt(registers[register_source1]) * BigInt(registers_unsigned[register_source2])) >> 32n) | 0
+			?	Number((BigInt(registers[register_source1]) * BigInt(registers_unsigned[register_source2])) >> 32n)
 			:	registers[register_source1] < registers[register_source2] ? 1 : 0
 		);
 		break;
 	case 0b01100011:// sltu/mulhu
 		registers[register_destination] = (
 			instruction & (1 << 25) // mulhu
-			?	Number((BigInt(registers_unsigned[register_source1]) * BigInt(registers_unsigned[register_source2])) >> 32n) | 0
+			?	Number((BigInt(registers_unsigned[register_source1]) * BigInt(registers_unsigned[register_source2])) >> 32n)
 			:	registers_unsigned[register_source1] < registers_unsigned[register_source2] ? 1 : 0
 		);
 		break;
@@ -167,7 +167,7 @@ function tick() {
 				?	-1
 				: dividend === -2147483648 && divisor === -1
 				?	-2147483648
-				:	(dividend / divisor) | 0
+				:	dividend / divisor
 			);
 			break;
 		}
