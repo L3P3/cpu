@@ -148,7 +148,7 @@ void tick() {
 		if (unlikely(addr & OOB_BITS_32)) goto error_oob;
 		uint32_t funct5 = instruction >> 27;
 		uint32_t word_index = addr >> 2;
-		
+
 		switch (funct5) {
 		case 0b00010: // lr.w
 			registers[register_destination] = memory32[word_index];
@@ -406,50 +406,50 @@ int main(int argc, char *argv[]) {
 	// load program
 	const char *program_path = argc > 1 ? argv[1] : "../tests/count.bin";
 	printf("loading %s\n", program_path);
-	
+
 	FILE *file = fopen(program_path, "rb");
 	if (!file) {
 		fprintf(stderr, "Failed to open file: %s\n", program_path);
 		return 1;
 	}
-	
+
 	(void)fread(memory8, 1, MEMORY_SIZE, file);
 	fclose(file);
-	
+
 	printf("running\n");
-	
+
 	clock_t time_start = clock();
 	uint32_t instruction_count = 0;
-	
+
 	do {
 		tick();
-		
+
 		if (program_ended) {
 			printf("-----\nprogram ended\n");
 			break;
 		}
-		
+
 		if (error_message != NULL) {
 			printf("-----\nprogram failed: %s\n", error_message);
 			break;
 		}
 	} while (++instruction_count < 10000000);
-	
+
 	// If we reach here without break, program timed out
 	if (!program_ended && error_message == NULL) {
 		printf("-----\nprogram timed out\n");
 	}
-	
+
 	clock_t time_end = clock();
 	double runtime = ((double)(time_end - time_start)) / CLOCKS_PER_SEC * 1000;
-	
+
 	printf("ran %u instructions in %.0f ms\n", instruction_count, runtime);
 	printf("execution speed: %.0f MHz\n", instruction_count / runtime / 1000);
-	
+
 	printf("registers:\n");
 	for (uint8_t i = 1; i < 32; i++) {
 		printf("  x%-2d = 0x%08x %d\n", i, (uint32_t)registers[i], registers[i]);
 	}
-	
+
 	return 0;
 }

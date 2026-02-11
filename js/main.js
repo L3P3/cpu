@@ -9,17 +9,18 @@ const OOB_BITS_16 = ~(MEMORY_SIZE - 1 - 1);   // halfword access
 const OOB_BITS_32 = ~(MEMORY_SIZE - 1 - 3);   // word access
 const OOB_BITS_PC = ~(MEMORY_SIZE / 4 - 1);   // program counter (word index)
 
-const registers = new Int32Array(32);
-const registers_unsigned = new Uint32Array(registers.buffer);
-const memory8 = new Uint8Array(MEMORY_SIZE);
-const memory16 = new Uint16Array(memory8.buffer);
-const memory32 = new Int32Array(memory8.buffer);
-const memory32_unsigned = new Uint32Array(memory8.buffer);
+const registers_unsigned = new Uint32Array(32);
+const registers = new Int32Array(registers_unsigned.buffer);
+const memory32_unsigned = new Uint32Array(MEMORY_SIZE / 4);
+const memory32 = new Int32Array(memory32_unsigned.buffer);
+const memory16 = new Uint16Array(memory32_unsigned.buffer);
+const memory8 = new Uint8Array(memory32_unsigned.buffer);
+
 
 // index for 32 bit!
 let program_counter = 0;
 
-// Reservation tracking for LR/SC
+// reservation tracking for LR/SC
 let reservation_address = -1;
 
 function tick() {
@@ -131,77 +132,73 @@ function tick() {
 		memory32[addr >>> 2] = registers[register_source2];
 		break;
 	}
-	// atomic (A extension)
-	case 0b01011010: {// AMO/LR/SC word operations
+	// atomic
+	case 0b01011010: {
 		const addr = registers[register_source1];
 		if (addr & OOB_BITS_32) throw 'out of bounds';
+		const addr_word = addr >>> 2;
 		const funct5 = instruction >>> 27;
-		const word_index = addr >>> 2;
-		
-		switch (funct5) {
-		case 0b00010: // lr.w
-			registers[register_destination] = memory32[word_index];
-			reservation_address = addr;
-			break;
-		case 0b00011: // sc.w
-			if (reservation_address === addr) {
-				memory32[word_index] = registers[register_source2];
-				registers[register_destination] = 0; // success
-			} else {
-				registers[register_destination] = 1; // failure
-			}
+
+		if (funct5 === 0b00011) { // sc.w?
+			registers[register_destination] = (
+				reservation_address === addr // success?
+				?	(
+					memory32[addr_word] = registers[register_source2],
+					0
+				)
+				:	1
+			);
 			reservation_address = -1;
 			break;
-		case 0b00001: // amoswap.w
-			registers[register_destination] = memory32[word_index];
-			memory32[word_index] = registers[register_source2];
-			break;
+		}
+		registers[register_destination] = memory32[addr_word];
+
+		switch (funct5) {
 		case 0b00000: // amoadd.w
-			registers[register_destination] = memory32[word_index];
-			memory32[word_index] = memory32[word_index] + registers[register_source2];
+			memory32[addr_word] = memory32[addr_word] + registers[register_source2];
+			break;
+		// case 0b00011: handled above
+		case 0b00001: // amoswap.w
+			memory32[addr_word] = registers[register_source2];
+			break;
+		case 0b00010: // lr.w
+			reservation_address = addr;
 			break;
 		case 0b00100: // amoxor.w
-			registers[register_destination] = memory32[word_index];
-			memory32[word_index] = memory32[word_index] ^ registers[register_source2];
-			break;
-		case 0b01100: // amoand.w
-			registers[register_destination] = memory32[word_index];
-			memory32[word_index] = memory32[word_index] & registers[register_source2];
+			memory32[addr_word] = memory32[addr_word] ^ registers[register_source2];
 			break;
 		case 0b01000: // amoor.w
-			registers[register_destination] = memory32[word_index];
-			memory32[word_index] = memory32[word_index] | registers[register_source2];
+			memory32[addr_word] = memory32[addr_word] | registers[register_source2];
+			break;
+		case 0b01100: // amoand.w
+			memory32[addr_word] = memory32[addr_word] & registers[register_source2];
 			break;
 		case 0b10000: // amomin.w
-			registers[register_destination] = memory32[word_index];
-			memory32[word_index] = (
-				memory32[word_index] < registers[register_source2]
-				? memory32[word_index]
-				: registers[register_source2]
+			memory32[addr_word] = (
+				memory32[addr_word] < registers[register_source2]
+				?	memory32[addr_word]
+				:	registers[register_source2]
 			);
 			break;
 		case 0b10100: // amomax.w
-			registers[register_destination] = memory32[word_index];
-			memory32[word_index] = (
-				memory32[word_index] > registers[register_source2]
-				? memory32[word_index]
-				: registers[register_source2]
+			memory32[addr_word] = (
+				memory32[addr_word] > registers[register_source2]
+				?	memory32[addr_word]
+				:	registers[register_source2]
 			);
 			break;
 		case 0b11000: // amominu.w
-			registers[register_destination] = memory32[word_index];
-			memory32[word_index] = (
-				memory32_unsigned[word_index] < registers_unsigned[register_source2]
-				? memory32[word_index]
-				: registers[register_source2]
+			memory32[addr_word] = (
+				memory32_unsigned[addr_word] < registers_unsigned[register_source2]
+				?	memory32[addr_word]
+				:	registers[register_source2]
 			);
 			break;
 		case 0b11100: // amomaxu.w
-			registers[register_destination] = memory32[word_index];
-			memory32[word_index] = (
-				memory32_unsigned[word_index] > registers_unsigned[register_source2]
-				? memory32[word_index]
-				: registers[register_source2]
+			memory32[addr_word] = (
+				memory32_unsigned[addr_word] > registers_unsigned[register_source2]
+				?	memory32[addr_word]
+				:	registers[register_source2]
 			);
 			break;
 		default:
