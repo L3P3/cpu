@@ -129,132 +129,96 @@ function tick() {
 	}
 	// register+register
 	case 0b01100000:// add/sub/mul
-		if (instruction >>> 25 & 1) {
-			// mul - multiply lower 32 bits
-			registers[register_destination] = Math.imul(registers[register_source1], registers[register_source2]);
-		}
-		else {
-			registers[register_destination] = (
-				instruction >>> 30
-				?	registers[register_source1] - registers[register_source2]
-				:	registers[register_source1] + registers[register_source2]
-			);
-		}
+		registers[register_destination] = (
+			instruction & (1 << 25) // mul?
+			?	registers[register_source1] * registers[register_source2] | 0
+			: instruction >>> 30 // sub?
+			?	registers[register_source1] - registers[register_source2]
+			:	registers[register_source1] + registers[register_source2]
+		);
 		break;
 	case 0b01100001:// sll/mulh
-		if (instruction >>> 25 & 1) {
-			// mulh - multiply high signed
-			const a = BigInt(registers[register_source1]);
-			const b = BigInt(registers[register_source2]);
-			const result = a * b;
-			registers[register_destination] = Number(result >> 32n) | 0;
-		}
-		else {
-			registers[register_destination] = registers[register_source1] << (registers[register_source2] & 0b11111);
-		}
+		registers[register_destination] = (
+			instruction & (1 << 25) // mulh?
+			?	Number((BigInt(registers[register_source1]) * BigInt(registers[register_source2])) >> 32n) | 0
+			:	registers[register_source1] << (registers[register_source2] & 0b11111)
+		);
 		break;
 	case 0b01100010:// slt/mulhsu
-		if (instruction >>> 25 & 1) {
-			// mulhsu - multiply high signed × unsigned
-			const a = BigInt(registers[register_source1]);
-			const b = BigInt(registers_unsigned[register_source2]);
-			const result = a * b;
-			registers[register_destination] = Number(result >> 32n) | 0;
-		}
-		else {
-			registers[register_destination] = registers[register_source1] < registers[register_source2] ? 1 : 0;
-		}
+		registers[register_destination] = (
+			instruction & (1 << 25) // mulhsu?
+			?	Number((BigInt(registers[register_source1]) * BigInt(registers_unsigned[register_source2])) >> 32n) | 0
+			:	registers[register_source1] < registers[register_source2] ? 1 : 0
+		);
 		break;
 	case 0b01100011:// sltu/mulhu
-		if (instruction >>> 25 & 1) {
-			// mulhu - multiply high unsigned
-			const a = BigInt(registers_unsigned[register_source1]);
-			const b = BigInt(registers_unsigned[register_source2]);
-			const result = a * b;
-			registers[register_destination] = Number(result >> 32n) | 0;
-		}
-		else {
-			registers[register_destination] = registers_unsigned[register_source1] < registers_unsigned[register_source2] ? 1 : 0;
-		}
+		registers[register_destination] = (
+			instruction & (1 << 25) // mulhu
+			?	Number((BigInt(registers_unsigned[register_source1]) * BigInt(registers_unsigned[register_source2])) >> 32n) | 0
+			:	registers_unsigned[register_source1] < registers_unsigned[register_source2] ? 1 : 0
+		);
 		break;
 	case 0b01100100:// xor/div
-		if (instruction >>> 25 & 1) {
-			// div - signed division
+		if (instruction & (1 << 25)) { // div?
 			const dividend = registers[register_source1];
 			const divisor = registers[register_source2];
-			if (divisor === 0) {
-				registers[register_destination] = -1;
-			}
-			else if (dividend === -2147483648 && divisor === -1) {
-				// overflow case
-				registers[register_destination] = -2147483648;
-			}
-			else {
-				registers[register_destination] = (dividend / divisor) | 0;
-			}
+			registers[register_destination] = (
+				divisor === 0
+				?	-1
+				: dividend === -2147483648 && divisor === -1
+				?	-2147483648
+				:	(dividend / divisor) | 0
+			);
+			break;
 		}
-		else {
-			registers[register_destination] = registers[register_source1] ^ registers[register_source2];
-		}
+		registers[register_destination] = registers[register_source1] ^ registers[register_source2];
 		break;
 	case 0b01100101: {// srl/sra/divu
-		if (instruction >>> 25 & 1) {
-			// divu - unsigned division
-			const dividend = registers_unsigned[register_source1];
+		if (instruction & (1 << 25)) { // divu?
 			const divisor = registers_unsigned[register_source2];
-			if (divisor === 0) {
-				registers_unsigned[register_destination] = 0xffffffff;
-			}
-			else {
-				registers_unsigned[register_destination] = (dividend / divisor) >>> 0;
-			}
+			registers_unsigned[register_destination] = (
+				divisor === 0
+				?	0xffffffff
+				:	(registers_unsigned[register_source1] / divisor) >>> 0
+			);
+			break;
+		}
+		const shift_by = registers[register_source2] & 0b11111;
+		if (instruction >>> 30) {
+			registers[register_destination] = registers[register_source1] >> shift_by;
 		}
 		else {
-			const shift_by = registers[register_source2] & 0b11111;
-			if (instruction >>> 30) {
-				registers[register_destination] = registers[register_source1] >> shift_by;
-			}
-			else {
-				registers_unsigned[register_destination] = registers_unsigned[register_source1] >>> shift_by;
-			}
+			registers_unsigned[register_destination] = registers_unsigned[register_source1] >>> shift_by;
 		}
 		break;
 	}
 	case 0b01100110:// or/rem
-		if (instruction >>> 25 & 1) {
-			// rem - signed remainder
+		if (instruction & (1 << 25)) { // rem?
 			const dividend = registers[register_source1];
 			const divisor = registers[register_source2];
-			if (divisor === 0) {
-				registers[register_destination] = dividend;
-			}
-			else if (dividend === -2147483648 && divisor === -1) {
-				// overflow case
-				registers[register_destination] = 0;
-			}
-			else {
-				registers[register_destination] = dividend % divisor;
-			}
+			registers[register_destination] = (
+				divisor === 0
+				?	dividend
+				: dividend === -2147483648 && divisor === -1 // overflow?
+				?	0
+				:	dividend % divisor
+			);
+			break;
 		}
-		else {
-			registers[register_destination] = registers[register_source1] | registers[register_source2];
-		}
+		registers[register_destination] = registers[register_source1] | registers[register_source2];
 		break;
 	case 0b01100111:// and/remu
-		if (instruction >>> 25 & 1) {
-			// remu - unsigned remainder
+		if (instruction & (1 << 25)) { // remu?
 			const dividend = registers_unsigned[register_source1];
 			const divisor = registers_unsigned[register_source2];
-			if (divisor === 0) {
-				registers_unsigned[register_destination] = dividend;
-			}
-			else {
-				registers_unsigned[register_destination] = dividend % divisor;
-			}
+			registers_unsigned[register_destination] = (
+				divisor === 0
+				?	dividend
+				:	dividend % divisor
+			);
+			break;
 		}
-		else {
-			registers[register_destination] = registers[register_source1] & registers[register_source2];
-		}
+		registers[register_destination] = registers[register_source1] & registers[register_source2];
 		break;
 	case 0b01101000:// lui ;)
 	case 0b01101001:
