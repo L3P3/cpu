@@ -270,13 +270,13 @@ impl CPU {
 				self.reservation_address = -1;
 				break 'atomic;
 			}
-			self.registers[register_destination] = self.memory32_signed()[addr_word];
+			let old_val = self.memory32_signed()[addr_word];
+			self.registers[register_destination] = old_val;
 
 			self.memory32_signed_mut()[addr_word] =
 				match funct5 {
 				0b00000 => { // amoadd.w
-					self.memory32_signed()[addr_word]
-						.wrapping_add(self.registers[register_source2])
+					old_val.wrapping_add(self.registers[register_source2])
 				}
 				0b00001 => { // amoswap.w
 					self.registers[register_source2]
@@ -287,38 +287,38 @@ impl CPU {
 				}
 				// 0b00011: handled above
 				0b00100 => { // amoxor.w
-					self.memory32_signed()[addr_word] ^ self.registers[register_source2]
+					old_val ^ self.registers[register_source2]
 				}
 				0b01000 => { // amoor.w
-					self.memory32_signed()[addr_word] | self.registers[register_source2]
+					old_val | self.registers[register_source2]
 				}
 				0b01100 => { // amoand.w
-					self.memory32_signed()[addr_word] & self.registers[register_source2]
+					old_val & self.registers[register_source2]
 				}
 				0b10000 => { // amomin.w
-					if self.memory32_signed()[addr_word] < self.registers[register_source2] {
-						self.memory32_signed()[addr_word]
+					if old_val < self.registers[register_source2] {
+						old_val
 					} else {
 						self.registers[register_source2]
 					}
 				}
 				0b10100 => { // amomax.w
-					if self.memory32_signed()[addr_word] > self.registers[register_source2] {
-						self.memory32_signed()[addr_word]
+					if old_val > self.registers[register_source2] {
+						old_val
 					} else {
 						self.registers[register_source2]
 					}
 				}
 				0b11000 => { // amominu.w
-					if self.memory32[addr_word] < self.register_unsigned(register_source2) {
-						self.memory32_signed()[addr_word]
+					if (old_val as u32) < self.register_unsigned(register_source2) {
+						old_val
 					} else {
 						self.registers[register_source2]
 					}
 				}
 				0b11100 => { // amomaxu.w
-					if self.memory32[addr_word] > self.register_unsigned(register_source2) {
-						self.memory32_signed()[addr_word]
+					if (old_val as u32) > self.register_unsigned(register_source2) {
+						old_val
 					} else {
 						self.registers[register_source2]
 					}
@@ -395,7 +395,7 @@ impl CPU {
 						-1
 					} else {
 						self.register_unsigned(register_source1).wrapping_div(divisor) as i32
-					};
+					}
 				} else {
 					let shift_by = self.registers[register_source2] & 0b11111;
 					if instruction >> 30 != 0 {
@@ -416,7 +416,7 @@ impl CPU {
 						0
 					} else {
 						dividend.wrapping_rem(divisor)
-					};
+					}
 				} else {
 					self.registers[register_source1] | self.registers[register_source2]
 				}
