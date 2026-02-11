@@ -242,80 +242,61 @@ impl CPU {
             // register+register
             0b01100000 => {
                 // add/sub/mul
-                if instruction >> 25 & 1 != 0 {
-                    // mul - multiply lower 32 bits
-                    self.registers[register_destination] = self.registers[register_source1]
-                        .wrapping_mul(self.registers[register_source2]);
+                self.registers[register_destination] = if instruction & (1 << 25) != 0 { // mul?
+                    self.registers[register_source1]
+                        .wrapping_mul(self.registers[register_source2])
+                } else if instruction >> 30 != 0 { // sub?
+                    self.registers[register_source1]
+                        .wrapping_sub(self.registers[register_source2])
                 } else {
-                    self.registers[register_destination] = if instruction >> 30 != 0 {
-                        self.registers[register_source1].wrapping_sub(self.registers[register_source2])
-                    } else {
-                        self.registers[register_source1].wrapping_add(self.registers[register_source2])
-                    };
-                }
+                    self.registers[register_source1]
+                        .wrapping_add(self.registers[register_source2])
+                };
             }
             0b01100001 => {
                 // sll/mulh
-                if instruction >> 25 & 1 != 0 {
-                    // mulh - multiply high signed
-                    let a = self.registers[register_source1] as i64;
-                    let b = self.registers[register_source2] as i64;
-                    let result = a.wrapping_mul(b);
-                    self.registers[register_destination] = (result >> 32) as i32;
+                self.registers[register_destination] = if instruction & (1 << 25) != 0 { // mulh?
+                    ((self.registers[register_source1] as i64)
+                        .wrapping_mul(self.registers[register_source2] as i64) >> 32) as i32
                 } else {
-                    self.registers[register_destination] =
-                        self.registers[register_source1] << (self.registers[register_source2] & 0b11111);
-                }
+                    self.registers[register_source1] << (self.registers[register_source2] & 0b11111)
+                };
             }
             0b01100010 => {
                 // slt/mulhsu
-                if instruction >> 25 & 1 != 0 {
-                    // mulhsu - multiply high signed × unsigned
-                    let a = self.registers[register_source1] as i64;
-                    let b = self.registers_unsigned(register_source2) as u64 as i64;
-                    let result = a.wrapping_mul(b);
-                    self.registers[register_destination] = (result >> 32) as i32;
+                self.registers[register_destination] = if instruction & (1 << 25) != 0 { // mulhsu?
+                    ((self.registers[register_source1] as i64)
+                        .wrapping_mul(self.registers_unsigned(register_source2) as u64 as i64) >> 32) as i32
+                } else if self.registers[register_source1] < self.registers[register_source2] {
+                    1
                 } else {
-                    self.registers[register_destination] =
-                        if self.registers[register_source1] < self.registers[register_source2] {
-                            1
-                        } else {
-                            0
-                        };
-                }
+                    0
+                };
             }
             0b01100011 => {
                 // sltu/mulhu
-                if instruction >> 25 & 1 != 0 {
-                    // mulhu - multiply high unsigned
-                    let a = self.registers_unsigned(register_source1) as u64;
-                    let b = self.registers_unsigned(register_source2) as u64;
-                    let result = a.wrapping_mul(b);
-                    self.registers[register_destination] = (result >> 32) as i32;
+                self.registers[register_destination] = if instruction & (1 << 25) != 0 { // mulhu?
+                    ((self.registers_unsigned(register_source1) as u64)
+                        .wrapping_mul(self.registers_unsigned(register_source2) as u64) >> 32) as i32
+                } else if self.registers_unsigned(register_source1)
+                    < self.registers_unsigned(register_source2) {
+                    1
                 } else {
-                    self.registers[register_destination] = if self.registers_unsigned(register_source1)
-                        < self.registers_unsigned(register_source2)
-                    {
-                        1
-                    } else {
-                        0
-                    };
-                }
+                    0
+                };
             }
             0b01100100 => {
                 // xor/div
-                if instruction >> 25 & 1 != 0 {
-                    // div - signed division
+                if instruction & (1 << 25) != 0 { // div?
                     let dividend = self.registers[register_source1];
                     let divisor = self.registers[register_source2];
-                    if divisor == 0 {
-                        self.registers[register_destination] = -1;
+                    self.registers[register_destination] = if divisor == 0 {
+                        -1
                     } else if dividend == i32::MIN && divisor == -1 {
-                        // overflow case
-                        self.registers[register_destination] = i32::MIN;
+                        i32::MIN
                     } else {
-                        self.registers[register_destination] = dividend.wrapping_div(divisor);
-                    }
+                        dividend.wrapping_div(divisor)
+                    };
                 } else {
                     self.registers[register_destination] =
                         self.registers[register_source1] ^ self.registers[register_source2];
@@ -323,15 +304,13 @@ impl CPU {
             }
             0b01100101 => {
                 // srl/sra/divu
-                if instruction >> 25 & 1 != 0 {
-                    // divu - unsigned division
-                    let dividend = self.registers_unsigned(register_source1);
+                if instruction & (1 << 25) != 0 { // divu?
                     let divisor = self.registers_unsigned(register_source2);
-                    if divisor == 0 {
-                        self.registers[register_destination] = -1;
+                    self.registers[register_destination] = if divisor == 0 {
+                        -1
                     } else {
-                        self.registers[register_destination] = dividend.wrapping_div(divisor) as i32;
-                    }
+                        self.registers_unsigned(register_source1).wrapping_div(divisor) as i32
+                    };
                 } else {
                     let shift_by = self.registers[register_source2] & 0b11111;
                     if instruction >> 30 != 0 {
@@ -345,18 +324,16 @@ impl CPU {
             }
             0b01100110 => {
                 // or/rem
-                if instruction >> 25 & 1 != 0 {
-                    // rem - signed remainder
+                if instruction & (1 << 25) != 0 { // rem?
                     let dividend = self.registers[register_source1];
                     let divisor = self.registers[register_source2];
-                    if divisor == 0 {
-                        self.registers[register_destination] = dividend;
-                    } else if dividend == i32::MIN && divisor == -1 {
-                        // overflow case
-                        self.registers[register_destination] = 0;
+                    self.registers[register_destination] = if divisor == 0 {
+                        dividend
+                    } else if dividend == i32::MIN && divisor == -1 { // overflow?
+                        0
                     } else {
-                        self.registers[register_destination] = dividend.wrapping_rem(divisor);
-                    }
+                        dividend.wrapping_rem(divisor)
+                    };
                 } else {
                     self.registers[register_destination] =
                         self.registers[register_source1] | self.registers[register_source2];
@@ -364,15 +341,14 @@ impl CPU {
             }
             0b01100111 => {
                 // and/remu
-                if instruction >> 25 & 1 != 0 {
-                    // remu - unsigned remainder
+                if instruction & (1 << 25) != 0 { // remu?
                     let dividend = self.registers_unsigned(register_source1);
                     let divisor = self.registers_unsigned(register_source2);
-                    if divisor == 0 {
-                        self.registers[register_destination] = dividend as i32;
+                    self.registers[register_destination] = if divisor == 0 {
+                        dividend as i32
                     } else {
-                        self.registers[register_destination] = dividend.wrapping_rem(divisor) as i32;
-                    }
+                        dividend.wrapping_rem(divisor) as i32
+                    };
                 } else {
                     self.registers[register_destination] =
                         self.registers[register_source1] & self.registers[register_source2];
