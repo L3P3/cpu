@@ -142,7 +142,7 @@ void tick() {
 	case 0b01100000:// add/sub/mul
 		registers[register_destination] = (
 			instruction & (1 << 25) // mul?
-			?	registers[register_source1] * registers[register_source2]
+			?	(int32_t) ((int64_t) registers[register_source1] * (int64_t) registers[register_source2])
 			: instruction >> 30 // sub?
 			?	registers[register_source1] - registers[register_source2]
 			:	registers[register_source1] + registers[register_source2]
