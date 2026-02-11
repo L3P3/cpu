@@ -14,13 +14,13 @@ rust:
 	cd rust && cargo build
 
 %.o: %.s
-	riscv64-unknown-elf-as -march=rv32im -o $@ $<
+	riscv64-unknown-elf-as -march=rv32ima -o $@ $<
 
 %.bin: %.o
 	riscv64-unknown-elf-objcopy -O binary $< $@
 
 c/main: c/main.c
-	gcc -O2 -o c/main c/main.c
+	gcc -O2 -fno-strict-aliasing -o c/main c/main.c
 
 clean:
 	rm -f $(OBJECTS) $(BINARIES) c/main

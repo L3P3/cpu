@@ -25,3 +25,6 @@ When working on the cpu, always stick to the following pattern:
    - For new features, update the minor part
    - For fixes/refactorings, update the patch part
    - Copy that version to `rust/Cargo.toml`
+
+5. **Unwanted files**
+   - Do not create or commit _codeql_... or similar files without being explicitly asked for

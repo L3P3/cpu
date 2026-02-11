@@ -4,19 +4,24 @@ const MEMORY_SIZE = 64 * 1024;
 
 // Out of bounds bit masks for memory access validation
 // Any address with these bits set is out of bounds
-const OOB_BITS_8 = ~(MEMORY_SIZE - 1);        // byte access
-const OOB_BITS_16 = ~(MEMORY_SIZE - 1 - 1);   // halfword access
-const OOB_BITS_32 = ~(MEMORY_SIZE - 1 - 3);   // word access
-const OOB_BITS_PC = ~(MEMORY_SIZE / 4 - 1);   // program counter (word index)
+const OOB_BITS_8 = ~(MEMORY_SIZE - 1); // byte access
+const OOB_BITS_16 = ~(MEMORY_SIZE - 1 - 1); // halfword access
+const OOB_BITS_32 = ~(MEMORY_SIZE - 1 - 3); // word access
+const OOB_BITS_PC = ~(MEMORY_SIZE / 4 - 1); // program counter (word index)
 
-const registers = new Int32Array(32);
-const registers_unsigned = new Uint32Array(registers.buffer);
-const memory8 = new Uint8Array(MEMORY_SIZE);
-const memory16 = new Uint16Array(memory8.buffer);
-const memory32 = new Int32Array(memory8.buffer);
+const registers_unsigned = new Uint32Array(32);
+const registers = new Int32Array(registers_unsigned.buffer);
+const memory32_unsigned = new Uint32Array(MEMORY_SIZE / 4);
+const memory32 = new Int32Array(memory32_unsigned.buffer);
+const memory16 = new Uint16Array(memory32_unsigned.buffer);
+const memory8 = new Uint8Array(memory32_unsigned.buffer);
+
 
 // index for 32 bit!
 let program_counter = 0;
+
+// reservation tracking for LR/SC
+let reservation_address = -1;
 
 function tick() {
 	// make it constant
@@ -35,31 +40,31 @@ function tick() {
 	// The | 0 suffix converts to 32-bit signed integer.
 	opcode: switch ((instruction >>> 2 << 3) & 0xff | funct3) {
 	// load
-	case 0b00000000: {// lb
+	case 0b00000000: { // lb
 		const addr = registers[register_source1] + (instruction >> 20) | 0;
 		if (addr & OOB_BITS_8) throw 'out of bounds';
 		registers[register_destination] = memory8[addr] << 24 >> 24;
 		break;
 	}
-	case 0b00000001: {// lh
+	case 0b00000001: { // lh
 		const addr = registers[register_source1] + (instruction >> 20) | 0;
 		if (addr & OOB_BITS_16) throw 'out of bounds';
 		registers[register_destination] = memory16[addr >>> 1] << 16 >> 16;
 		break;
 	}
-	case 0b00000010: {// lw
+	case 0b00000010: { // lw
 		const addr = registers[register_source1] + (instruction >> 20) | 0;
 		if (addr & OOB_BITS_32) throw 'out of bounds';
 		registers[register_destination] = memory32[addr >>> 2];
 		break;
 	}
-	case 0b00000100: {// lbu
+	case 0b00000100: { // lbu
 		const addr = registers[register_source1] + (instruction >> 20) | 0;
 		if (addr & OOB_BITS_8) throw 'out of bounds';
 		registers[register_destination] = memory8[addr];
 		break;
 	}
-	case 0b00000101: {// lhu
+	case 0b00000101: { // lhu
 		const addr = registers[register_source1] + (instruction >> 20) | 0;
 		if (addr & OOB_BITS_16) throw 'out of bounds';
 		registers[register_destination] = memory16[addr >>> 1];
@@ -67,22 +72,22 @@ function tick() {
 	}
 	// fence
 	// register+immediate
-	case 0b00100000:// addi
+	case 0b00100000: // addi
 		registers[register_destination] = registers[register_source1] + (instruction >> 20);
 		break;
-	case 0b00100001:// slli
+	case 0b00100001: // slli
 		registers[register_destination] = registers[register_source1] << ((instruction >>> 20) & 0b11111);
 		break;
-	case 0b00100010:// slti
+	case 0b00100010: // slti
 		registers[register_destination] = registers[register_source1] < instruction >> 20 ? 1 : 0;
 		break;
-	case 0b00100011:// sltiu
+	case 0b00100011: // sltiu
 		registers[register_destination] = registers_unsigned[register_source1] < instruction >>> 20 ? 1 : 0;
 		break;
-	case 0b00100100:// xori
+	case 0b00100100: // xori
 		registers[register_destination] = registers[register_source1] ^ instruction >> 20;
 		break;
-	case 0b00100101: {// srli/srai
+	case 0b00100101: { // srli/srai
 		const shift_by = (instruction >>> 20) & 0b11111;
 		if (instruction >>> 30) {
 			registers[register_destination] = registers[register_source1] >> shift_by;
@@ -92,13 +97,13 @@ function tick() {
 		}
 		break;
 	}
-	case 0b00100110:// ori
+	case 0b00100110: // ori
 		registers[register_destination] = registers[register_source1] | instruction >> 20;
 		break;
-	case 0b00100111:// andi
+	case 0b00100111: // andi
 		registers[register_destination] = registers[register_source1] & instruction >> 20;
 		break;
-	case 0b00101000:// auipc
+	case 0b00101000: // auipc
 	case 0b00101001:
 	case 0b00101010:
 	case 0b00101011:
@@ -109,26 +114,100 @@ function tick() {
 		registers[register_destination] = (program_counter << 2) + (instruction & 0xfffff000);
 		break;
 	// store
-	case 0b01000000: {// sb
+	case 0b01000000: { // sb
 		const addr = registers[register_source1] + (instruction >> 25 << 5 | register_destination) | 0;
 		if (addr & OOB_BITS_8) throw 'out of bounds';
 		memory8[addr] = registers[register_source2];
 		break;
 	}
-	case 0b01000001: {// sh
+	case 0b01000001: { // sh
 		const addr = registers[register_source1] + (instruction >> 25 << 5 | register_destination) | 0;
 		if (addr & OOB_BITS_16) throw 'out of bounds';
 		memory16[addr >>> 1] = registers[register_source2];
 		break;
 	}
-	case 0b01000010: {// sw
+	case 0b01000010: { // sw
 		const addr = registers[register_source1] + (instruction >> 25 << 5 | register_destination) | 0;
 		if (addr & OOB_BITS_32) throw 'out of bounds';
 		memory32[addr >>> 2] = registers[register_source2];
 		break;
 	}
+	// atomic
+	case 0b01011010: {
+		const addr = registers[register_source1];
+		if (addr & OOB_BITS_32) throw 'out of bounds';
+		const addr_word = addr >>> 2;
+		const funct5 = instruction >>> 27;
+
+		if (funct5 === 0b00011) { // sc.w?
+			registers[register_destination] = (
+				reservation_address === addr // success?
+				?	(
+					memory32[addr_word] = registers[register_source2],
+					0
+				)
+				:	1
+			);
+			reservation_address = -1;
+			break;
+		}
+		const value_before = registers[register_destination] = memory32[addr_word];
+
+		switch (funct5) {
+		case 0b00000: // amoadd.w
+			memory32[addr_word] = value_before + registers[register_source2];
+			break;
+		// case 0b00011: handled above
+		case 0b00001: // amoswap.w
+			memory32[addr_word] = registers[register_source2];
+			break;
+		case 0b00010: // lr.w
+			reservation_address = addr;
+			break;
+		case 0b00100: // amoxor.w
+			memory32[addr_word] = value_before ^ registers[register_source2];
+			break;
+		case 0b01000: // amoor.w
+			memory32[addr_word] = value_before | registers[register_source2];
+			break;
+		case 0b01100: // amoand.w
+			memory32[addr_word] = value_before & registers[register_source2];
+			break;
+		case 0b10000: // amomin.w
+			memory32[addr_word] = (
+				value_before < registers[register_source2]
+				?	value_before
+				:	registers[register_source2]
+			);
+			break;
+		case 0b10100: // amomax.w
+			memory32[addr_word] = (
+				value_before > registers[register_source2]
+				?	value_before
+				:	registers[register_source2]
+			);
+			break;
+		case 0b11000: // amominu.w
+			memory32[addr_word] = (
+				memory32_unsigned[addr_word] < registers_unsigned[register_source2]
+				?	value_before
+				:	registers[register_source2]
+			);
+			break;
+		case 0b11100: // amomaxu.w
+			memory32[addr_word] = (
+				memory32_unsigned[addr_word] > registers_unsigned[register_source2]
+				?	value_before
+				:	registers[register_source2]
+			);
+			break;
+		default:
+			throw 'illegal atomic operation';
+		}
+		break;
+	}
 	// register+register
-	case 0b01100000:// add/sub/mul
+	case 0b01100000: // add/sub/mul
 		registers[register_destination] = (
 			instruction & (1 << 25) // mul?
 			?	registers[register_source1] * registers[register_source2]
@@ -137,28 +216,28 @@ function tick() {
 			:	registers[register_source1] + registers[register_source2]
 		);
 		break;
-	case 0b01100001:// sll/mulh
+	case 0b01100001: // sll/mulh
 		registers[register_destination] = (
 			instruction & (1 << 25) // mulh?
 			?	Number((BigInt(registers[register_source1]) * BigInt(registers[register_source2])) >> 32n)
 			:	registers[register_source1] << (registers[register_source2] & 0b11111)
 		);
 		break;
-	case 0b01100010:// slt/mulhsu
+	case 0b01100010: // slt/mulhsu
 		registers[register_destination] = (
 			instruction & (1 << 25) // mulhsu?
 			?	Number((BigInt(registers[register_source1]) * BigInt(registers_unsigned[register_source2])) >> 32n)
 			:	registers[register_source1] < registers[register_source2] ? 1 : 0
 		);
 		break;
-	case 0b01100011:// sltu/mulhu
+	case 0b01100011: // sltu/mulhu
 		registers[register_destination] = (
 			instruction & (1 << 25) // mulhu
 			?	Number((BigInt(registers_unsigned[register_source1]) * BigInt(registers_unsigned[register_source2])) >> 32n)
 			:	registers_unsigned[register_source1] < registers_unsigned[register_source2] ? 1 : 0
 		);
 		break;
-	case 0b01100100:// xor/div
+	case 0b01100100: // xor/div
 		if (instruction & (1 << 25)) { // div?
 			const dividend = registers[register_source1];
 			const divisor = registers[register_source2];
@@ -173,7 +252,7 @@ function tick() {
 		}
 		registers[register_destination] = registers[register_source1] ^ registers[register_source2];
 		break;
-	case 0b01100101: {// srl/sra/divu
+	case 0b01100101: { // srl/sra/divu
 		if (instruction & (1 << 25)) { // divu?
 			const divisor = registers_unsigned[register_source2];
 			registers_unsigned[register_destination] = (
@@ -192,7 +271,7 @@ function tick() {
 		}
 		break;
 	}
-	case 0b01100110:// or/rem
+	case 0b01100110: // or/rem
 		if (instruction & (1 << 25)) { // rem?
 			const dividend = registers[register_source1];
 			const divisor = registers[register_source2];
@@ -207,7 +286,7 @@ function tick() {
 		}
 		registers[register_destination] = registers[register_source1] | registers[register_source2];
 		break;
-	case 0b01100111:// and/remu
+	case 0b01100111: // and/remu
 		if (instruction & (1 << 25)) { // remu?
 			const dividend = registers_unsigned[register_source1];
 			const divisor = registers_unsigned[register_source2];
@@ -220,7 +299,7 @@ function tick() {
 		}
 		registers[register_destination] = registers[register_source1] & registers[register_source2];
 		break;
-	case 0b01101000:// lui ;)
+	case 0b01101000: // lui ;)
 	case 0b01101001:
 	case 0b01101010:
 	case 0b01101011:
@@ -230,29 +309,29 @@ function tick() {
 	case 0b01101111:
 		registers[register_destination] = instruction & 0xfffff000;
 		break;
-	case 0b11000000:// branch
+	case 0b11000000: // branch
 	case 0b11000001:
 	case 0b11000100:
 	case 0b11000101:
 	case 0b11000110:
 	case 0b11000111:
 		switch (funct3) {
-		case 0b000:// beq
+		case 0b000: // beq
 			if (registers[register_source1] === registers[register_source2]) break;
 			break opcode;
-		case 0b001:// bne
+		case 0b001: // bne
 			if (registers[register_source1] !== registers[register_source2]) break;
 			break opcode;
-		case 0b100:// blt
+		case 0b100: // blt
 			if (registers[register_source1] < registers[register_source2]) break;
 			break opcode;
-		case 0b101:// bge
+		case 0b101: // bge
 			if (registers[register_source1] >= registers[register_source2]) break;
 			break opcode;
-		case 0b110:// bltu
+		case 0b110: // bltu
 			if (registers_unsigned[register_source1] < registers_unsigned[register_source2]) break;
 			break opcode;
-		case 0b111:// bgeu
+		case 0b111: // bgeu
 			if (registers_unsigned[register_source1] >= registers_unsigned[register_source2]) break;
 			break opcode;
 		default:
@@ -266,12 +345,12 @@ function tick() {
 		) | 0;
 		if (program_counter & OOB_BITS_PC) throw 'out of bounds';
 		return;
-	case 0b11001000:// jalr
+	case 0b11001000: // jalr
 		registers[register_destination] = program_counter + 1 << 2;
 		program_counter = registers[register_source1] + (instruction >> 20) >>> 2;
 		if (program_counter & OOB_BITS_PC) throw 'out of bounds';
 		return;
-	case 0b11011000:// jal
+	case 0b11011000: // jal
 	case 0b11011001:
 	case 0b11011010:
 	case 0b11011011:

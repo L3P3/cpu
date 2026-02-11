@@ -11,7 +11,7 @@ I wanted to do this for a long time, but never had the time to do it. Now I stil
 
 ## Supported Extensions
 
-This CPU implements the **RV32I** base instruction set and the **RV32M** extension:
+This CPU implements the **RV32I** base instruction set, the **RV32M** extension, and the **RV32A** extension:
 
 ### RV32I Base Instructions
 - **Load Instructions**: `lb`, `lh`, `lw`, `lbu`, `lhu`
@@ -26,6 +26,11 @@ This CPU implements the **RV32I** base instruction set and the **RV32M** extensi
 - **Multiplication**: `mul`, `mulh`, `mulhsu`, `mulhu`
 - **Division**: `div`, `divu`
 - **Remainder**: `rem`, `remu`
+
+### RV32A Extension (Atomic Instructions)
+- **Load-Reserved/Store-Conditional**: `lr.w`, `sc.w`
+- **Atomic Memory Operations**: `amoadd.w`, `amoswap.w`, `amoxor.w`, `amoand.w`, `amoor.w`
+- **Atomic Min/Max**: `amomin.w`, `amomax.w`, `amominu.w`, `amomaxu.w`
 
 ## How to use
 
