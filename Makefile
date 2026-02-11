@@ -14,7 +14,7 @@ rust:
 	cd rust && cargo build
 
 %.o: %.s
-	riscv64-unknown-elf-as -march=rv32im -o $@ $<
+	riscv64-unknown-elf-as -march=rv32ima -o $@ $<
 
 %.bin: %.o
 	riscv64-unknown-elf-objcopy -O binary $< $@
