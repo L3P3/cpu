@@ -270,13 +270,13 @@ impl CPU {
 				self.reservation_address = -1;
 				break 'atomic;
 			}
-			let old_val = self.memory32_signed()[addr_word];
-			self.registers[register_destination] = old_val;
+			let value_before = self.memory32_signed()[addr_word];
+			self.registers[register_destination] = value_before;
 
 			self.memory32_signed_mut()[addr_word] =
 				match funct5 {
 				0b00000 => { // amoadd.w
-					old_val.wrapping_add(self.registers[register_source2])
+					value_before.wrapping_add(self.registers[register_source2])
 				}
 				0b00001 => { // amoswap.w
 					self.registers[register_source2]
@@ -287,38 +287,38 @@ impl CPU {
 				}
 				// 0b00011: handled above
 				0b00100 => { // amoxor.w
-					old_val ^ self.registers[register_source2]
+					value_before ^ self.registers[register_source2]
 				}
 				0b01000 => { // amoor.w
-					old_val | self.registers[register_source2]
+					value_before | self.registers[register_source2]
 				}
 				0b01100 => { // amoand.w
-					old_val & self.registers[register_source2]
+					value_before & self.registers[register_source2]
 				}
 				0b10000 => { // amomin.w
-					if old_val < self.registers[register_source2] {
-						old_val
+					if value_before < self.registers[register_source2] {
+						value_before
 					} else {
 						self.registers[register_source2]
 					}
 				}
 				0b10100 => { // amomax.w
-					if old_val > self.registers[register_source2] {
-						old_val
+					if value_before > self.registers[register_source2] {
+						value_before
 					} else {
 						self.registers[register_source2]
 					}
 				}
 				0b11000 => { // amominu.w
-					if (old_val as u32) < self.register_unsigned(register_source2) {
-						old_val
+					if (value_before as u32) < self.register_unsigned(register_source2) {
+						value_before
 					} else {
 						self.registers[register_source2]
 					}
 				}
 				0b11100 => { // amomaxu.w
-					if (old_val as u32) > self.register_unsigned(register_source2) {
-						old_val
+					if (value_before as u32) > self.register_unsigned(register_source2) {
+						value_before
 					} else {
 						self.registers[register_source2]
 					}

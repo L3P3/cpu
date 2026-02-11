@@ -151,11 +151,11 @@ function tick() {
 			reservation_address = -1;
 			break;
 		}
-		registers[register_destination] = memory32[addr_word];
+		const value_before = registers[register_destination] = memory32[addr_word];
 
 		switch (funct5) {
 		case 0b00000: // amoadd.w
-			memory32[addr_word] = memory32[addr_word] + registers[register_source2];
+			memory32[addr_word] = value_before + registers[register_source2];
 			break;
 		// case 0b00011: handled above
 		case 0b00001: // amoswap.w
@@ -165,39 +165,39 @@ function tick() {
 			reservation_address = addr;
 			break;
 		case 0b00100: // amoxor.w
-			memory32[addr_word] = memory32[addr_word] ^ registers[register_source2];
+			memory32[addr_word] = value_before ^ registers[register_source2];
 			break;
 		case 0b01000: // amoor.w
-			memory32[addr_word] = memory32[addr_word] | registers[register_source2];
+			memory32[addr_word] = value_before | registers[register_source2];
 			break;
 		case 0b01100: // amoand.w
-			memory32[addr_word] = memory32[addr_word] & registers[register_source2];
+			memory32[addr_word] = value_before & registers[register_source2];
 			break;
 		case 0b10000: // amomin.w
 			memory32[addr_word] = (
-				memory32[addr_word] < registers[register_source2]
-				?	memory32[addr_word]
+				value_before < registers[register_source2]
+				?	value_before
 				:	registers[register_source2]
 			);
 			break;
 		case 0b10100: // amomax.w
 			memory32[addr_word] = (
-				memory32[addr_word] > registers[register_source2]
-				?	memory32[addr_word]
+				value_before > registers[register_source2]
+				?	value_before
 				:	registers[register_source2]
 			);
 			break;
 		case 0b11000: // amominu.w
 			memory32[addr_word] = (
 				memory32_unsigned[addr_word] < registers_unsigned[register_source2]
-				?	memory32[addr_word]
+				?	value_before
 				:	registers[register_source2]
 			);
 			break;
 		case 0b11100: // amomaxu.w
 			memory32[addr_word] = (
 				memory32_unsigned[addr_word] > registers_unsigned[register_source2]
-				?	memory32[addr_word]
+				?	value_before
 				:	registers[register_source2]
 			);
 			break;

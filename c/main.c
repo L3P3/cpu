@@ -161,11 +161,11 @@ void tick() {
 			reservation_address = -1;
 			break;
 		}
-		registers[register_destination] = memory32[word_index];
+		int32_t value_before = registers[register_destination] = memory32[word_index];
 
 		switch (funct5) {
 		case 0b00000: // amoadd.w
-			memory32_unsigned[word_index] = memory32_unsigned[word_index] + registers_unsigned[register_source2];
+			memory32_unsigned[word_index] += registers_unsigned[register_source2];
 			break;
 		// case 0b00011: handled above
 		case 0b00001: // amoswap.w
@@ -175,39 +175,39 @@ void tick() {
 			reservation_address = addr;
 			break;
 		case 0b00100: // amoxor.w
-			memory32[word_index] = memory32[word_index] ^ registers[register_source2];
+			memory32[word_index] = value_before ^ registers[register_source2];
 			break;
 		case 0b01000: // amoor.w
-			memory32[word_index] = memory32[word_index] | registers[register_source2];
+			memory32[word_index] = value_before | registers[register_source2];
 			break;
 		case 0b01100: // amoand.w
-			memory32[word_index] = memory32[word_index] & registers[register_source2];
+			memory32[word_index] = value_before & registers[register_source2];
 			break;
 		case 0b10000: // amomin.w
 			memory32[word_index] = (
-				memory32[word_index] < registers[register_source2]
-				?	memory32[word_index]
+				value_before < registers[register_source2]
+				?	value_before
 				:	registers[register_source2]
 			);
 			break;
 		case 0b10100: // amomax.w
 			memory32[word_index] = (
-				memory32[word_index] > registers[register_source2]
-				?	memory32[word_index]
+				value_before > registers[register_source2]
+				?	value_before
 				:	registers[register_source2]
 			);
 			break;
 		case 0b11000: // amominu.w
 			memory32[word_index] = (
 				memory32_unsigned[word_index] < registers_unsigned[register_source2]
-				?	memory32[word_index]
+				?	value_before
 				:	registers[register_source2]
 			);
 			break;
 		case 0b11100: // amomaxu.w
 			memory32[word_index] = (
 				memory32_unsigned[word_index] > registers_unsigned[register_source2]
-				?	memory32[word_index]
+				?	value_before
 				:	registers[register_source2]
 			);
 			break;
