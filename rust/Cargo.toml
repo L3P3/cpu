@@ -1,6 +1,6 @@
 [package]
 name = "cpu"
-version = "0.0.2"
+version = "0.1.0"
 edition = "2021"
 authors = ["L3P3 <dev@l3p3.de>"]
 license = "Zlib"

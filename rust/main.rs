@@ -18,6 +18,7 @@ struct CPU {
     program_counter: u32,
     program_ended: bool,
     error_message: Option<&'static str>,
+    reservation_address: i32,
 }
 
 impl CPU {
@@ -28,6 +29,7 @@ impl CPU {
             program_counter: 0,
             program_ended: false,
             error_message: None,
+            reservation_address: -1,
         }
     }
 
@@ -66,6 +68,26 @@ impl CPU {
         unsafe {
             std::slice::from_raw_parts_mut(
                 self.memory8.as_mut_ptr() as *mut i32,
+                MEMORY_SIZE / 4,
+            )
+        }
+    }
+
+    #[inline(always)]
+    fn memory32_unsigned(&self) -> &[u32] {
+        unsafe {
+            std::slice::from_raw_parts(
+                self.memory8.as_ptr() as *const u32,
+                MEMORY_SIZE / 4,
+            )
+        }
+    }
+
+    #[inline(always)]
+    fn memory32_unsigned_mut(&mut self) -> &mut [u32] {
+        unsafe {
+            std::slice::from_raw_parts_mut(
+                self.memory8.as_mut_ptr() as *mut u32,
                 MEMORY_SIZE / 4,
             )
         }
@@ -238,6 +260,93 @@ impl CPU {
                     return;
                 }
                 self.memory32_mut()[(addr >> 2) as usize] = self.registers[register_source2];
+            }
+            // atomic (A extension)
+            0b01011010 => {
+                // AMO/LR/SC word operations
+                let addr = self.registers[register_source1];
+                if addr & OOB_BITS_32 != 0 {
+                    self.error_message = Some("out of bounds");
+                    return;
+                }
+                let funct5 = instruction >> 27;
+                let word_index = (addr >> 2) as usize;
+                
+                match funct5 {
+                    0b00010 => { // lr.w
+                        self.registers[register_destination] = self.memory32()[word_index];
+                        self.reservation_address = addr;
+                    }
+                    0b00011 => { // sc.w
+                        if self.reservation_address == addr {
+                            self.memory32_mut()[word_index] = self.registers[register_source2];
+                            self.registers[register_destination] = 0; // success
+                        } else {
+                            self.registers[register_destination] = 1; // failure
+                        }
+                        self.reservation_address = -1;
+                    }
+                    0b00001 => { // amoswap.w
+                        self.registers[register_destination] = self.memory32()[word_index];
+                        self.memory32_mut()[word_index] = self.registers[register_source2];
+                    }
+                    0b00000 => { // amoadd.w
+                        self.registers[register_destination] = self.memory32()[word_index];
+                        self.memory32_mut()[word_index] = self.memory32()[word_index]
+                            .wrapping_add(self.registers[register_source2]);
+                    }
+                    0b00100 => { // amoxor.w
+                        self.registers[register_destination] = self.memory32()[word_index];
+                        self.memory32_mut()[word_index] = self.memory32()[word_index]
+                            ^ self.registers[register_source2];
+                    }
+                    0b01100 => { // amoand.w
+                        self.registers[register_destination] = self.memory32()[word_index];
+                        self.memory32_mut()[word_index] = self.memory32()[word_index]
+                            & self.registers[register_source2];
+                    }
+                    0b01000 => { // amoor.w
+                        self.registers[register_destination] = self.memory32()[word_index];
+                        self.memory32_mut()[word_index] = self.memory32()[word_index]
+                            | self.registers[register_source2];
+                    }
+                    0b10000 => { // amomin.w
+                        self.registers[register_destination] = self.memory32()[word_index];
+                        self.memory32_mut()[word_index] = if self.memory32()[word_index] < self.registers[register_source2] {
+                            self.memory32()[word_index]
+                        } else {
+                            self.registers[register_source2]
+                        };
+                    }
+                    0b10100 => { // amomax.w
+                        self.registers[register_destination] = self.memory32()[word_index];
+                        self.memory32_mut()[word_index] = if self.memory32()[word_index] > self.registers[register_source2] {
+                            self.memory32()[word_index]
+                        } else {
+                            self.registers[register_source2]
+                        };
+                    }
+                    0b11000 => { // amominu.w
+                        self.registers[register_destination] = self.memory32()[word_index];
+                        self.memory32_mut()[word_index] = if self.memory32_unsigned()[word_index] < self.registers_unsigned(register_source2) {
+                            self.memory32()[word_index]
+                        } else {
+                            self.registers[register_source2]
+                        };
+                    }
+                    0b11100 => { // amomaxu.w
+                        self.registers[register_destination] = self.memory32()[word_index];
+                        self.memory32_mut()[word_index] = if self.memory32_unsigned()[word_index] > self.registers_unsigned(register_source2) {
+                            self.memory32()[word_index]
+                        } else {
+                            self.registers[register_source2]
+                        };
+                    }
+                    _ => {
+                        self.error_message = Some("illegal atomic operation");
+                        return;
+                    }
+                }
             }
             // register+register
             0b01100000 => {

@@ -22,9 +22,13 @@ uint32_t *registers_unsigned = (uint32_t *) registers;
 uint8_t memory8[MEMORY_SIZE];
 uint16_t *memory16 = (uint16_t *) memory8;
 int32_t *memory32 = (int32_t *) memory8;
+uint32_t *memory32_unsigned = (uint32_t *) memory8;
 
 // index for 32 bit!
 uint32_t program_counter = 0;
+
+// Reservation tracking for LR/SC
+int32_t reservation_address = -1;
 
 // Exit flag for program termination
 bool program_ended = false;
@@ -136,6 +140,85 @@ void tick() {
 		int32_t addr = registers[register_source1] + (((int32_t)instruction >> 25) << 5 | register_destination);
 		if (unlikely(addr & OOB_BITS_32)) goto error_oob;
 		memory32[addr >> 2] = registers[register_source2];
+		break;
+	}
+	// atomic (A extension)
+	case 0b01011010: {// AMO/LR/SC word operations
+		int32_t addr = registers[register_source1];
+		if (unlikely(addr & OOB_BITS_32)) goto error_oob;
+		uint32_t funct5 = instruction >> 27;
+		uint32_t word_index = addr >> 2;
+		
+		switch (funct5) {
+		case 0b00010: // lr.w
+			registers[register_destination] = memory32[word_index];
+			reservation_address = addr;
+			break;
+		case 0b00011: // sc.w
+			if (reservation_address == addr) {
+				memory32[word_index] = registers[register_source2];
+				registers[register_destination] = 0; // success
+			} else {
+				registers[register_destination] = 1; // failure
+			}
+			reservation_address = -1;
+			break;
+		case 0b00001: // amoswap.w
+			registers[register_destination] = memory32[word_index];
+			memory32[word_index] = registers[register_source2];
+			break;
+		case 0b00000: // amoadd.w
+			registers[register_destination] = memory32[word_index];
+			memory32[word_index] = memory32[word_index] + registers[register_source2];
+			break;
+		case 0b00100: // amoxor.w
+			registers[register_destination] = memory32[word_index];
+			memory32[word_index] = memory32[word_index] ^ registers[register_source2];
+			break;
+		case 0b01100: // amoand.w
+			registers[register_destination] = memory32[word_index];
+			memory32[word_index] = memory32[word_index] & registers[register_source2];
+			break;
+		case 0b01000: // amoor.w
+			registers[register_destination] = memory32[word_index];
+			memory32[word_index] = memory32[word_index] | registers[register_source2];
+			break;
+		case 0b10000: // amomin.w
+			registers[register_destination] = memory32[word_index];
+			memory32[word_index] = (
+				memory32[word_index] < registers[register_source2]
+				? memory32[word_index]
+				: registers[register_source2]
+			);
+			break;
+		case 0b10100: // amomax.w
+			registers[register_destination] = memory32[word_index];
+			memory32[word_index] = (
+				memory32[word_index] > registers[register_source2]
+				? memory32[word_index]
+				: registers[register_source2]
+			);
+			break;
+		case 0b11000: // amominu.w
+			registers[register_destination] = memory32[word_index];
+			memory32[word_index] = (
+				memory32_unsigned[word_index] < registers_unsigned[register_source2]
+				? memory32[word_index]
+				: registers[register_source2]
+			);
+			break;
+		case 0b11100: // amomaxu.w
+			registers[register_destination] = memory32[word_index];
+			memory32[word_index] = (
+				memory32_unsigned[word_index] > registers_unsigned[register_source2]
+				? memory32[word_index]
+				: registers[register_source2]
+			);
+			break;
+		default:
+			error_message = "illegal atomic operation";
+			return;
+		}
 		break;
 	}
 	// register+register
