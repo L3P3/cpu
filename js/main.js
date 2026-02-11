@@ -68,7 +68,7 @@ function tick() {
 	// fence
 	// register+immediate
 	case 0b00100000:// addi
-		registers[register_destination] = registers[register_source1] + (instruction >> 20) | 0;
+		registers[register_destination] = registers[register_source1] + (instruction >> 20);
 		break;
 	case 0b00100001:// slli
 		registers[register_destination] = registers[register_source1] << ((instruction >>> 20) & 0b11111);
@@ -106,7 +106,7 @@ function tick() {
 	case 0b00101101:
 	case 0b00101110:
 	case 0b00101111:
-		registers[register_destination] = (program_counter << 2) + (instruction & 0xfffff000) | 0;
+		registers[register_destination] = (program_counter << 2) + (instruction & 0xfffff000);
 		break;
 	// store
 	case 0b01000000: {// sb
@@ -128,26 +128,61 @@ function tick() {
 		break;
 	}
 	// register+register
-	case 0b01100000:// add/sub
+	case 0b01100000:// add/sub/mul
 		registers[register_destination] = (
-			instruction >>> 30
+			instruction & (1 << 25) // mul?
+			?	registers[register_source1] * registers[register_source2]
+			: instruction >>> 30 // sub?
 			?	registers[register_source1] - registers[register_source2]
 			:	registers[register_source1] + registers[register_source2]
 		);
 		break;
-	case 0b01100001:// sll
-		registers[register_destination] = registers[register_source1] << (registers[register_source2] & 0b11111);
+	case 0b01100001:// sll/mulh
+		registers[register_destination] = (
+			instruction & (1 << 25) // mulh?
+			?	Number((BigInt(registers[register_source1]) * BigInt(registers[register_source2])) >> 32n)
+			:	registers[register_source1] << (registers[register_source2] & 0b11111)
+		);
 		break;
-	case 0b01100010:// slt
-		registers[register_destination] = registers[register_source1] < registers[register_source2] ? 1 : 0;
+	case 0b01100010:// slt/mulhsu
+		registers[register_destination] = (
+			instruction & (1 << 25) // mulhsu?
+			?	Number((BigInt(registers[register_source1]) * BigInt(registers_unsigned[register_source2])) >> 32n)
+			:	registers[register_source1] < registers[register_source2] ? 1 : 0
+		);
 		break;
-	case 0b01100011:// sltu
-		registers[register_destination] = registers_unsigned[register_source1] < registers_unsigned[register_source2] ? 1 : 0;
+	case 0b01100011:// sltu/mulhu
+		registers[register_destination] = (
+			instruction & (1 << 25) // mulhu
+			?	Number((BigInt(registers_unsigned[register_source1]) * BigInt(registers_unsigned[register_source2])) >> 32n)
+			:	registers_unsigned[register_source1] < registers_unsigned[register_source2] ? 1 : 0
+		);
 		break;
-	case 0b01100100:// xor
+	case 0b01100100:// xor/div
+		if (instruction & (1 << 25)) { // div?
+			const dividend = registers[register_source1];
+			const divisor = registers[register_source2];
+			registers[register_destination] = (
+				divisor === 0
+				?	-1
+				: dividend === -2147483648 && divisor === -1
+				?	-2147483648
+				:	dividend / divisor
+			);
+			break;
+		}
 		registers[register_destination] = registers[register_source1] ^ registers[register_source2];
 		break;
-	case 0b01100101: {// srl/sra
+	case 0b01100101: {// srl/sra/divu
+		if (instruction & (1 << 25)) { // divu?
+			const divisor = registers_unsigned[register_source2];
+			registers_unsigned[register_destination] = (
+				divisor === 0
+				?	0xffffffff
+				:	(registers_unsigned[register_source1] / divisor) >>> 0
+			);
+			break;
+		}
 		const shift_by = registers[register_source2] & 0b11111;
 		if (instruction >>> 30) {
 			registers[register_destination] = registers[register_source1] >> shift_by;
@@ -157,10 +192,32 @@ function tick() {
 		}
 		break;
 	}
-	case 0b01100110:// or
+	case 0b01100110:// or/rem
+		if (instruction & (1 << 25)) { // rem?
+			const dividend = registers[register_source1];
+			const divisor = registers[register_source2];
+			registers[register_destination] = (
+				divisor === 0
+				?	dividend
+				: dividend === -2147483648 && divisor === -1 // overflow?
+				?	0
+				:	dividend % divisor
+			);
+			break;
+		}
 		registers[register_destination] = registers[register_source1] | registers[register_source2];
 		break;
-	case 0b01100111:// and
+	case 0b01100111:// and/remu
+		if (instruction & (1 << 25)) { // remu?
+			const dividend = registers_unsigned[register_source1];
+			const divisor = registers_unsigned[register_source2];
+			registers_unsigned[register_destination] = (
+				divisor === 0
+				?	dividend
+				:	dividend % divisor
+			);
+			break;
+		}
 		registers[register_destination] = registers[register_source1] & registers[register_source2];
 		break;
 	case 0b01101000:// lui ;)

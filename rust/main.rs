@@ -241,62 +241,118 @@ impl CPU {
             }
             // register+register
             0b01100000 => {
-                // add/sub
-                self.registers[register_destination] = if instruction >> 30 != 0 {
-                    self.registers[register_source1].wrapping_sub(self.registers[register_source2])
+                // add/sub/mul
+                self.registers[register_destination] = if instruction & (1 << 25) != 0 { // mul?
+                    self.registers[register_source1]
+                        .wrapping_mul(self.registers[register_source2])
+                } else if instruction >> 30 != 0 { // sub?
+                    self.registers[register_source1]
+                        .wrapping_sub(self.registers[register_source2])
                 } else {
-                    self.registers[register_source1].wrapping_add(self.registers[register_source2])
+                    self.registers[register_source1]
+                        .wrapping_add(self.registers[register_source2])
                 };
             }
             0b01100001 => {
-                // sll
-                self.registers[register_destination] =
-                    self.registers[register_source1] << (self.registers[register_source2] & 0b11111);
+                // sll/mulh
+                self.registers[register_destination] = if instruction & (1 << 25) != 0 { // mulh?
+                    ((self.registers[register_source1] as i64)
+                        .wrapping_mul(self.registers[register_source2] as i64) >> 32) as i32
+                } else {
+                    self.registers[register_source1] << (self.registers[register_source2] & 0b11111)
+                };
             }
             0b01100010 => {
-                // slt
-                self.registers[register_destination] =
-                    if self.registers[register_source1] < self.registers[register_source2] {
-                        1
-                    } else {
-                        0
-                    };
+                // slt/mulhsu
+                self.registers[register_destination] = if instruction & (1 << 25) != 0 { // mulhsu?
+                    ((self.registers[register_source1] as i64)
+                        .wrapping_mul(self.registers_unsigned(register_source2) as u64 as i64) >> 32) as i32
+                } else if self.registers[register_source1] < self.registers[register_source2] {
+                    1
+                } else {
+                    0
+                };
             }
             0b01100011 => {
-                // sltu
-                self.registers[register_destination] = if self.registers_unsigned(register_source1)
-                    < self.registers_unsigned(register_source2)
-                {
+                // sltu/mulhu
+                self.registers[register_destination] = if instruction & (1 << 25) != 0 { // mulhu?
+                    ((self.registers_unsigned(register_source1) as u64)
+                        .wrapping_mul(self.registers_unsigned(register_source2) as u64) >> 32) as i32
+                } else if self.registers_unsigned(register_source1)
+                    < self.registers_unsigned(register_source2) {
                     1
                 } else {
                     0
                 };
             }
             0b01100100 => {
-                // xor
-                self.registers[register_destination] =
-                    self.registers[register_source1] ^ self.registers[register_source2];
-            }
-            0b01100101 => {
-                // srl/sra
-                let shift_by = self.registers[register_source2] & 0b11111;
-                if instruction >> 30 != 0 {
-                    self.registers[register_destination] =
-                        self.registers[register_source1] >> shift_by;
+                // xor/div
+                if instruction & (1 << 25) != 0 { // div?
+                    let dividend = self.registers[register_source1];
+                    let divisor = self.registers[register_source2];
+                    self.registers[register_destination] = if divisor == 0 {
+                        -1
+                    } else if dividend == i32::MIN && divisor == -1 {
+                        i32::MIN
+                    } else {
+                        dividend.wrapping_div(divisor)
+                    };
                 } else {
                     self.registers[register_destination] =
-                        (self.registers_unsigned(register_source1) >> shift_by) as i32;
+                        self.registers[register_source1] ^ self.registers[register_source2];
+                }
+            }
+            0b01100101 => {
+                // srl/sra/divu
+                if instruction & (1 << 25) != 0 { // divu?
+                    let divisor = self.registers_unsigned(register_source2);
+                    self.registers[register_destination] = if divisor == 0 {
+                        -1
+                    } else {
+                        self.registers_unsigned(register_source1).wrapping_div(divisor) as i32
+                    };
+                } else {
+                    let shift_by = self.registers[register_source2] & 0b11111;
+                    if instruction >> 30 != 0 {
+                        self.registers[register_destination] =
+                            self.registers[register_source1] >> shift_by;
+                    } else {
+                        self.registers[register_destination] =
+                            (self.registers_unsigned(register_source1) >> shift_by) as i32;
+                    }
                 }
             }
             0b01100110 => {
-                // or
-                self.registers[register_destination] =
-                    self.registers[register_source1] | self.registers[register_source2];
+                // or/rem
+                if instruction & (1 << 25) != 0 { // rem?
+                    let dividend = self.registers[register_source1];
+                    let divisor = self.registers[register_source2];
+                    self.registers[register_destination] = if divisor == 0 {
+                        dividend
+                    } else if dividend == i32::MIN && divisor == -1 { // overflow?
+                        0
+                    } else {
+                        dividend.wrapping_rem(divisor)
+                    };
+                } else {
+                    self.registers[register_destination] =
+                        self.registers[register_source1] | self.registers[register_source2];
+                }
             }
             0b01100111 => {
-                // and
-                self.registers[register_destination] =
-                    self.registers[register_source1] & self.registers[register_source2];
+                // and/remu
+                if instruction & (1 << 25) != 0 { // remu?
+                    let dividend = self.registers_unsigned(register_source1);
+                    let divisor = self.registers_unsigned(register_source2);
+                    self.registers[register_destination] = if divisor == 0 {
+                        dividend as i32
+                    } else {
+                        dividend.wrapping_rem(divisor) as i32
+                    };
+                } else {
+                    self.registers[register_destination] =
+                        self.registers[register_source1] & self.registers[register_source2];
+                }
             }
             0b01101000 | 0b01101001 | 0b01101010 | 0b01101011 | 0b01101100 | 0b01101101
             | 0b01101110 | 0b01101111 => {
