@@ -4,6 +4,7 @@ When working on the cpu, always stick to the following pattern:
 
 1. **Implement in JavaScript First**
    - Start with the JavaScript port (`js/main.js`)
+   - Strictly stick to the code style already present
    - Test thoroughly with assembly files
    - JavaScript provides easier debugging and faster iteration
 
@@ -18,3 +19,9 @@ When working on the cpu, always stick to the following pattern:
    - Port to C (`c/main.c`)
    - Port to Rust (`rust/main.rs`)
    - Maintain 1:1 mapping with JavaScript implementation
+
+4. **Version bump**
+   - For every pull request, update the version in `js/package.json`
+   - For new features, update the minor part
+   - For fixes/refactorings, update the patch part
+   - Copy that version to `rust/Cargo.toml`
