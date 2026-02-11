@@ -131,7 +131,7 @@ function tick() {
 	case 0b01100000:// add/sub/mul
 		if (instruction >>> 25 & 1) {
 			// mul - multiply lower 32 bits
-			registers[register_destination] = Math.imul(registers[register_source1], registers[register_source2]);
+			registers[register_destination] = registers[register_source1] * registers[register_source2] | 0;
 		}
 		else {
 			registers[register_destination] = (
