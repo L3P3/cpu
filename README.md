@@ -39,6 +39,7 @@ Then run it with one of the implementations:
 - JavaScript: `node js/main.js tests/calc.bin`
 - C: `make c && c/main tests/calc.bin`
 - Rust: `make rust && rust/target/debug/cpu tests/calc.bin`
+- Zig: `make zig && zig/zig-out/bin/cpu tests/calc.bin`
 
 ## Contribution
 Contributions are welcome! If you would like to contribute, please feel free to submit a pull request.
