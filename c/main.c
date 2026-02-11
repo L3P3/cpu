@@ -17,12 +17,12 @@
 // Branch prediction hint for unlikely conditions
 #define unlikely(x) __builtin_expect(!!(x), 0)
 
-int32_t registers[32];
-uint32_t *registers_unsigned = (uint32_t *) registers;
-uint8_t memory8[MEMORY_SIZE];
-uint16_t *memory16 = (uint16_t *) memory8;
-int32_t *memory32 = (int32_t *) memory8;
-uint32_t *memory32_unsigned = (uint32_t *) memory8;
+uint32_t registers_unsigned[32];
+int32_t *registers = (int32_t *) registers_unsigned;
+uint32_t memory32_unsigned[MEMORY_SIZE / 4];
+int32_t *memory32 = (int32_t *) memory32_unsigned;
+uint16_t *memory16 = (uint16_t *) memory32_unsigned;
+uint8_t *memory8 = (uint8_t *) memory32_unsigned;
 
 // index for 32 bit!
 uint32_t program_counter = 0;
@@ -169,7 +169,7 @@ void tick() {
 			break;
 		case 0b00000: // amoadd.w
 			registers[register_destination] = memory32[word_index];
-			memory32[word_index] = memory32[word_index] + registers[register_source2];
+			memory32_unsigned[word_index] = memory32_unsigned[word_index] + registers_unsigned[register_source2];
 			break;
 		case 0b00100: // amoxor.w
 			registers[register_destination] = memory32[word_index];

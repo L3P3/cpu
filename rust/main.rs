@@ -14,7 +14,7 @@ const OOB_BITS_PC: u32 = !((MEMORY_SIZE / 4) as u32 - 1); // program counter (wo
 
 struct CPU {
     registers: [i32; 32],
-    memory8: Vec<u8>,
+    memory32: Vec<u32>,
     program_counter: u32,
     program_ended: bool,
     error_message: Option<&'static str>,
@@ -25,7 +25,7 @@ impl CPU {
     fn new() -> Self {
         CPU {
             registers: [0; 32],
-            memory8: vec![0; MEMORY_SIZE],
+            memory32: vec![0; MEMORY_SIZE / 4],
             program_counter: 0,
             program_ended: false,
             error_message: None,
@@ -34,10 +34,30 @@ impl CPU {
     }
 
     #[inline(always)]
+    fn memory8(&self) -> &[u8] {
+        unsafe {
+            std::slice::from_raw_parts(
+                self.memory32.as_ptr() as *const u8,
+                MEMORY_SIZE,
+            )
+        }
+    }
+
+    #[inline(always)]
+    fn memory8_mut(&mut self) -> &mut [u8] {
+        unsafe {
+            std::slice::from_raw_parts_mut(
+                self.memory32.as_mut_ptr() as *mut u8,
+                MEMORY_SIZE,
+            )
+        }
+    }
+
+    #[inline(always)]
     fn memory16(&self) -> &[u16] {
         unsafe {
             std::slice::from_raw_parts(
-                self.memory8.as_ptr() as *const u16,
+                self.memory32.as_ptr() as *const u16,
                 MEMORY_SIZE / 2,
             )
         }
@@ -47,47 +67,27 @@ impl CPU {
     fn memory16_mut(&mut self) -> &mut [u16] {
         unsafe {
             std::slice::from_raw_parts_mut(
-                self.memory8.as_mut_ptr() as *mut u16,
+                self.memory32.as_mut_ptr() as *mut u16,
                 MEMORY_SIZE / 2,
             )
         }
     }
 
     #[inline(always)]
-    fn memory32(&self) -> &[i32] {
+    fn memory32_signed(&self) -> &[i32] {
         unsafe {
             std::slice::from_raw_parts(
-                self.memory8.as_ptr() as *const i32,
+                self.memory32.as_ptr() as *const i32,
                 MEMORY_SIZE / 4,
             )
         }
     }
 
     #[inline(always)]
-    fn memory32_mut(&mut self) -> &mut [i32] {
+    fn memory32_signed_mut(&mut self) -> &mut [i32] {
         unsafe {
             std::slice::from_raw_parts_mut(
-                self.memory8.as_mut_ptr() as *mut i32,
-                MEMORY_SIZE / 4,
-            )
-        }
-    }
-
-    #[inline(always)]
-    fn memory32_unsigned(&self) -> &[u32] {
-        unsafe {
-            std::slice::from_raw_parts(
-                self.memory8.as_ptr() as *const u32,
-                MEMORY_SIZE / 4,
-            )
-        }
-    }
-
-    #[inline(always)]
-    fn memory32_unsigned_mut(&mut self) -> &mut [u32] {
-        unsafe {
-            std::slice::from_raw_parts_mut(
-                self.memory8.as_mut_ptr() as *mut u32,
+                self.memory32.as_mut_ptr() as *mut i32,
                 MEMORY_SIZE / 4,
             )
         }
@@ -102,7 +102,7 @@ impl CPU {
         // make it constant
         self.registers[0] = 0;
 
-        let instruction = self.memory32()[self.program_counter as usize] as u32;
+        let instruction = self.memory32_signed()[self.program_counter as usize] as u32;
 
         let funct3 = (instruction >> 12) & 0b111;
 
@@ -122,7 +122,7 @@ impl CPU {
                     self.error_message = Some("out of bounds");
                     return;
                 }
-                self.registers[register_destination] = self.memory8[addr as usize] as i8 as i32;
+                self.registers[register_destination] = self.memory8()[addr as usize] as i8 as i32;
             }
             0b00000001 => {
                 // lh
@@ -143,7 +143,7 @@ impl CPU {
                     self.error_message = Some("out of bounds");
                     return;
                 }
-                self.registers[register_destination] = self.memory32()[(addr >> 2) as usize];
+                self.registers[register_destination] = self.memory32_signed()[(addr >> 2) as usize];
             }
             0b00000100 => {
                 // lbu
@@ -153,7 +153,7 @@ impl CPU {
                     self.error_message = Some("out of bounds");
                     return;
                 }
-                self.registers[register_destination] = self.memory8[addr as usize] as i32;
+                self.registers[register_destination] = self.memory8()[addr as usize] as i32;
             }
             0b00000101 => {
                 // lhu
@@ -237,7 +237,7 @@ impl CPU {
                     self.error_message = Some("out of bounds");
                     return;
                 }
-                self.memory8[addr as usize] = self.registers[register_source2] as u8;
+                self.memory8_mut()[addr as usize] = self.registers[register_source2] as u8;
             }
             0b01000001 => {
                 // sh
@@ -259,7 +259,7 @@ impl CPU {
                     self.error_message = Some("out of bounds");
                     return;
                 }
-                self.memory32_mut()[(addr >> 2) as usize] = self.registers[register_source2];
+                self.memory32_signed_mut()[(addr >> 2) as usize] = self.registers[register_source2];
             }
             // atomic (A extension)
             0b01011010 => {
@@ -274,12 +274,12 @@ impl CPU {
                 
                 match funct5 {
                     0b00010 => { // lr.w
-                        self.registers[register_destination] = self.memory32()[word_index];
+                        self.registers[register_destination] = self.memory32_signed()[word_index];
                         self.reservation_address = addr;
                     }
                     0b00011 => { // sc.w
                         if self.reservation_address == addr {
-                            self.memory32_mut()[word_index] = self.registers[register_source2];
+                            self.memory32_signed_mut()[word_index] = self.registers[register_source2];
                             self.registers[register_destination] = 0; // success
                         } else {
                             self.registers[register_destination] = 1; // failure
@@ -287,58 +287,58 @@ impl CPU {
                         self.reservation_address = -1;
                     }
                     0b00001 => { // amoswap.w
-                        self.registers[register_destination] = self.memory32()[word_index];
-                        self.memory32_mut()[word_index] = self.registers[register_source2];
+                        self.registers[register_destination] = self.memory32_signed()[word_index];
+                        self.memory32_signed_mut()[word_index] = self.registers[register_source2];
                     }
                     0b00000 => { // amoadd.w
-                        self.registers[register_destination] = self.memory32()[word_index];
-                        self.memory32_mut()[word_index] = self.memory32()[word_index]
+                        self.registers[register_destination] = self.memory32_signed()[word_index];
+                        self.memory32_signed_mut()[word_index] = self.memory32_signed()[word_index]
                             .wrapping_add(self.registers[register_source2]);
                     }
                     0b00100 => { // amoxor.w
-                        self.registers[register_destination] = self.memory32()[word_index];
-                        self.memory32_mut()[word_index] = self.memory32()[word_index]
+                        self.registers[register_destination] = self.memory32_signed()[word_index];
+                        self.memory32_signed_mut()[word_index] = self.memory32_signed()[word_index]
                             ^ self.registers[register_source2];
                     }
                     0b01100 => { // amoand.w
-                        self.registers[register_destination] = self.memory32()[word_index];
-                        self.memory32_mut()[word_index] = self.memory32()[word_index]
+                        self.registers[register_destination] = self.memory32_signed()[word_index];
+                        self.memory32_signed_mut()[word_index] = self.memory32_signed()[word_index]
                             & self.registers[register_source2];
                     }
                     0b01000 => { // amoor.w
-                        self.registers[register_destination] = self.memory32()[word_index];
-                        self.memory32_mut()[word_index] = self.memory32()[word_index]
+                        self.registers[register_destination] = self.memory32_signed()[word_index];
+                        self.memory32_signed_mut()[word_index] = self.memory32_signed()[word_index]
                             | self.registers[register_source2];
                     }
                     0b10000 => { // amomin.w
-                        self.registers[register_destination] = self.memory32()[word_index];
-                        self.memory32_mut()[word_index] = if self.memory32()[word_index] < self.registers[register_source2] {
-                            self.memory32()[word_index]
+                        self.registers[register_destination] = self.memory32_signed()[word_index];
+                        self.memory32_signed_mut()[word_index] = if self.memory32_signed()[word_index] < self.registers[register_source2] {
+                            self.memory32_signed()[word_index]
                         } else {
                             self.registers[register_source2]
                         };
                     }
                     0b10100 => { // amomax.w
-                        self.registers[register_destination] = self.memory32()[word_index];
-                        self.memory32_mut()[word_index] = if self.memory32()[word_index] > self.registers[register_source2] {
-                            self.memory32()[word_index]
+                        self.registers[register_destination] = self.memory32_signed()[word_index];
+                        self.memory32_signed_mut()[word_index] = if self.memory32_signed()[word_index] > self.registers[register_source2] {
+                            self.memory32_signed()[word_index]
                         } else {
                             self.registers[register_source2]
                         };
                     }
                     0b11000 => { // amominu.w
-                        let old_val = self.memory32()[word_index];
+                        let old_val = self.memory32_signed()[word_index];
                         self.registers[register_destination] = old_val;
-                        self.memory32_mut()[word_index] = if (old_val as u32) < self.registers_unsigned(register_source2) {
+                        self.memory32_signed_mut()[word_index] = if (self.memory32[word_index]) < self.registers_unsigned(register_source2) {
                             old_val
                         } else {
                             self.registers[register_source2]
                         };
                     }
                     0b11100 => { // amomaxu.w
-                        let old_val = self.memory32()[word_index];
+                        let old_val = self.memory32_signed()[word_index];
                         self.registers[register_destination] = old_val;
-                        self.memory32_mut()[word_index] = if (old_val as u32) > self.registers_unsigned(register_source2) {
+                        self.memory32_signed_mut()[word_index] = if (self.memory32[word_index]) > self.registers_unsigned(register_source2) {
                             old_val
                         } else {
                             self.registers[register_source2]
@@ -580,7 +580,7 @@ fn main() {
 
     let mut file = File::open(program_path).expect("Failed to open file");
     let mut cpu = CPU::new();
-    file.read(&mut cpu.memory8)
+    file.read(cpu.memory8_mut())
         .expect("Failed to read file");
 
     println!("running");
