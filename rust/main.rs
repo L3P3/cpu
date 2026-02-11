@@ -269,84 +269,76 @@ impl CPU {
                     self.error_message = Some("out of bounds");
                     return;
                 }
+                let addr_word = (addr >> 2) as usize;
                 let funct5 = instruction >> 27;
-                let word_index = (addr >> 2) as usize;
                 
-                match funct5 {
-                    0b00010 => { // lr.w
-                        self.registers[register_destination] = self.memory32_signed()[word_index];
-                        self.reservation_address = addr;
-                    }
-                    0b00011 => { // sc.w
-                        if self.reservation_address == addr {
-                            self.memory32_signed_mut()[word_index] = self.registers[register_source2];
-                            self.registers[register_destination] = 0; // success
-                        } else {
-                            self.registers[register_destination] = 1; // failure
+                if funct5 == 0b00011 { // sc.w?
+                    self.registers[register_destination] = if self.reservation_address == addr { // success?
+                        self.memory32_signed_mut()[addr_word] = self.registers[register_source2];
+                        0
+                    } else {
+                        1
+                    };
+                    self.reservation_address = -1;
+                } else {
+                    self.registers[register_destination] = self.memory32_signed()[addr_word];
+
+                    match funct5 {
+                        0b00000 => { // amoadd.w
+                            self.memory32_signed_mut()[addr_word] = self.memory32_signed()[addr_word]
+                                .wrapping_add(self.registers[register_source2]);
                         }
-                        self.reservation_address = -1;
-                    }
-                    0b00001 => { // amoswap.w
-                        self.registers[register_destination] = self.memory32_signed()[word_index];
-                        self.memory32_signed_mut()[word_index] = self.registers[register_source2];
-                    }
-                    0b00000 => { // amoadd.w
-                        self.registers[register_destination] = self.memory32_signed()[word_index];
-                        self.memory32_signed_mut()[word_index] = self.memory32_signed()[word_index]
-                            .wrapping_add(self.registers[register_source2]);
-                    }
-                    0b00100 => { // amoxor.w
-                        self.registers[register_destination] = self.memory32_signed()[word_index];
-                        self.memory32_signed_mut()[word_index] = self.memory32_signed()[word_index]
-                            ^ self.registers[register_source2];
-                    }
-                    0b01100 => { // amoand.w
-                        self.registers[register_destination] = self.memory32_signed()[word_index];
-                        self.memory32_signed_mut()[word_index] = self.memory32_signed()[word_index]
-                            & self.registers[register_source2];
-                    }
-                    0b01000 => { // amoor.w
-                        self.registers[register_destination] = self.memory32_signed()[word_index];
-                        self.memory32_signed_mut()[word_index] = self.memory32_signed()[word_index]
-                            | self.registers[register_source2];
-                    }
-                    0b10000 => { // amomin.w
-                        self.registers[register_destination] = self.memory32_signed()[word_index];
-                        self.memory32_signed_mut()[word_index] = if self.memory32_signed()[word_index] < self.registers[register_source2] {
-                            self.memory32_signed()[word_index]
-                        } else {
-                            self.registers[register_source2]
-                        };
-                    }
-                    0b10100 => { // amomax.w
-                        self.registers[register_destination] = self.memory32_signed()[word_index];
-                        self.memory32_signed_mut()[word_index] = if self.memory32_signed()[word_index] > self.registers[register_source2] {
-                            self.memory32_signed()[word_index]
-                        } else {
-                            self.registers[register_source2]
-                        };
-                    }
-                    0b11000 => { // amominu.w
-                        let old_val = self.memory32_signed()[word_index];
-                        self.registers[register_destination] = old_val;
-                        self.memory32_signed_mut()[word_index] = if (self.memory32[word_index]) < self.registers_unsigned(register_source2) {
-                            old_val
-                        } else {
-                            self.registers[register_source2]
-                        };
-                    }
-                    0b11100 => { // amomaxu.w
-                        let old_val = self.memory32_signed()[word_index];
-                        self.registers[register_destination] = old_val;
-                        self.memory32_signed_mut()[word_index] = if (self.memory32[word_index]) > self.registers_unsigned(register_source2) {
-                            old_val
-                        } else {
-                            self.registers[register_source2]
-                        };
-                    }
-                    _ => {
-                        self.error_message = Some("illegal atomic operation");
-                        return;
+                        // case 0b00011: handled above
+                        0b00001 => { // amoswap.w
+                            self.memory32_signed_mut()[addr_word] = self.registers[register_source2];
+                        }
+                        0b00010 => { // lr.w
+                            self.reservation_address = addr;
+                        }
+                        0b00100 => { // amoxor.w
+                            self.memory32_signed_mut()[addr_word] = self.memory32_signed()[addr_word]
+                                ^ self.registers[register_source2];
+                        }
+                        0b01000 => { // amoor.w
+                            self.memory32_signed_mut()[addr_word] = self.memory32_signed()[addr_word]
+                                | self.registers[register_source2];
+                        }
+                        0b01100 => { // amoand.w
+                            self.memory32_signed_mut()[addr_word] = self.memory32_signed()[addr_word]
+                                & self.registers[register_source2];
+                        }
+                        0b10000 => { // amomin.w
+                            self.memory32_signed_mut()[addr_word] = if self.memory32_signed()[addr_word] < self.registers[register_source2] {
+                                self.memory32_signed()[addr_word]
+                            } else {
+                                self.registers[register_source2]
+                            };
+                        }
+                        0b10100 => { // amomax.w
+                            self.memory32_signed_mut()[addr_word] = if self.memory32_signed()[addr_word] > self.registers[register_source2] {
+                                self.memory32_signed()[addr_word]
+                            } else {
+                                self.registers[register_source2]
+                            };
+                        }
+                        0b11000 => { // amominu.w
+                            self.memory32_signed_mut()[addr_word] = if self.memory32[addr_word] < self.registers_unsigned(register_source2) {
+                                self.memory32_signed()[addr_word]
+                            } else {
+                                self.registers[register_source2]
+                            };
+                        }
+                        0b11100 => { // amomaxu.w
+                            self.memory32_signed_mut()[addr_word] = if self.memory32[addr_word] > self.registers_unsigned(register_source2) {
+                                self.memory32_signed()[addr_word]
+                            } else {
+                                self.registers[register_source2]
+                            };
+                        }
+                        _ => {
+                            self.error_message = Some("illegal atomic operation");
+                            return;
+                        }
                     }
                 }
             }

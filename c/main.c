@@ -146,45 +146,44 @@ void tick() {
 	case 0b01011010: {// AMO/LR/SC word operations
 		int32_t addr = registers[register_source1];
 		if (unlikely(addr & OOB_BITS_32)) goto error_oob;
-		uint32_t funct5 = instruction >> 27;
 		uint32_t word_index = addr >> 2;
+		uint32_t funct5 = instruction >> 27;
 
-		switch (funct5) {
-		case 0b00010: // lr.w
-			registers[register_destination] = memory32[word_index];
-			reservation_address = addr;
-			break;
-		case 0b00011: // sc.w
-			if (reservation_address == addr) {
-				memory32[word_index] = registers[register_source2];
-				registers[register_destination] = 0; // success
-			} else {
-				registers[register_destination] = 1; // failure
-			}
+		if (funct5 == 0b00011) { // sc.w?
+			registers[register_destination] = (
+				reservation_address == addr // success?
+				?	(
+					memory32[word_index] = registers[register_source2],
+					0
+				)
+				:	1
+			);
 			reservation_address = -1;
 			break;
-		case 0b00001: // amoswap.w
-			registers[register_destination] = memory32[word_index];
-			memory32[word_index] = registers[register_source2];
-			break;
+		}
+		registers[register_destination] = memory32[word_index];
+
+		switch (funct5) {
 		case 0b00000: // amoadd.w
-			registers[register_destination] = memory32[word_index];
 			memory32_unsigned[word_index] = memory32_unsigned[word_index] + registers_unsigned[register_source2];
 			break;
+		// case 0b00011: handled above
+		case 0b00001: // amoswap.w
+			memory32[word_index] = registers[register_source2];
+			break;
+		case 0b00010: // lr.w
+			reservation_address = addr;
+			break;
 		case 0b00100: // amoxor.w
-			registers[register_destination] = memory32[word_index];
 			memory32[word_index] = memory32[word_index] ^ registers[register_source2];
 			break;
-		case 0b01100: // amoand.w
-			registers[register_destination] = memory32[word_index];
-			memory32[word_index] = memory32[word_index] & registers[register_source2];
-			break;
 		case 0b01000: // amoor.w
-			registers[register_destination] = memory32[word_index];
 			memory32[word_index] = memory32[word_index] | registers[register_source2];
 			break;
+		case 0b01100: // amoand.w
+			memory32[word_index] = memory32[word_index] & registers[register_source2];
+			break;
 		case 0b10000: // amomin.w
-			registers[register_destination] = memory32[word_index];
 			memory32[word_index] = (
 				memory32[word_index] < registers[register_source2]
 				? memory32[word_index]
@@ -192,7 +191,6 @@ void tick() {
 			);
 			break;
 		case 0b10100: // amomax.w
-			registers[register_destination] = memory32[word_index];
 			memory32[word_index] = (
 				memory32[word_index] > registers[register_source2]
 				? memory32[word_index]
@@ -200,7 +198,6 @@ void tick() {
 			);
 			break;
 		case 0b11000: // amominu.w
-			registers[register_destination] = memory32[word_index];
 			memory32[word_index] = (
 				memory32_unsigned[word_index] < registers_unsigned[register_source2]
 				? memory32[word_index]
@@ -208,7 +205,6 @@ void tick() {
 			);
 			break;
 		case 0b11100: // amomaxu.w
-			registers[register_destination] = memory32[word_index];
 			memory32[word_index] = (
 				memory32_unsigned[word_index] > registers_unsigned[register_source2]
 				? memory32[word_index]
@@ -413,7 +409,12 @@ int main(int argc, char *argv[]) {
 		return 1;
 	}
 
-	(void)fread(memory8, 1, MEMORY_SIZE, file);
+	size_t bytes_read = fread(memory8, 1, MEMORY_SIZE, file);
+	if (bytes_read == 0 && ferror(file)) {
+		fprintf(stderr, "Failed to read file: %s\n", program_path);
+		fclose(file);
+		return 1;
+	}
 	fclose(file);
 
 	printf("running\n");
