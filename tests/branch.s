@@ -1,6 +1,6 @@
 # Expected result: x10 = 6 (all branches taken correctly)
 _start:
-	li x10, 0          # counter for successful branches
+	li x10, 0 # counter for successful branches
 
 	# Test beq (branch if equal)
 	li x5, 10
