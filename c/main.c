@@ -139,141 +139,98 @@ void tick() {
 		break;
 	}
 	// register+register
-	case 0b01100000: {// add/sub/mul
-		if (instruction >> 25 & 1) {
-			// mul - multiply lower 32 bits
-			registers[register_destination] = registers[register_source1] * registers[register_source2];
-		}
-		else {
+	case 0b01100000:// add/sub/mul
+		registers[register_destination] = (
+			instruction & (1 << 25) // mul?
+			?	registers[register_source1] * registers[register_source2]
+			: instruction >> 30 // sub?
+			?	registers[register_source1] - registers[register_source2]
+			:	registers[register_source1] + registers[register_source2]
+		);
+		break;
+	case 0b01100001:// sll/mulh
+		registers[register_destination] = (
+			instruction & (1 << 25) // mulh?
+			?	(int32_t) (((int64_t) registers[register_source1] * (int64_t) registers[register_source2]) >> 32)
+			:	registers[register_source1] << (registers[register_source2] & 0b11111)
+		);
+		break;
+	case 0b01100010:// slt/mulhsu
+		registers[register_destination] = (
+			instruction & (1 << 25) // mulhsu?
+			?	(int32_t) (((int64_t) registers[register_source1] * (int64_t) (uint64_t) registers_unsigned[register_source2]) >> 32)
+			:	registers[register_source1] < registers[register_source2] ? 1 : 0
+		);
+		break;
+	case 0b01100011:// sltu/mulhu
+		registers[register_destination] = (
+			instruction & (1 << 25) // mulhu?
+			?	(uint32_t) (((uint64_t) registers_unsigned[register_source1] * (uint64_t) registers_unsigned[register_source2]) >> 32)
+			:	registers_unsigned[register_source1] < registers_unsigned[register_source2] ? 1 : 0
+		);
+		break;
+	case 0b01100100:// xor/div
+		if (instruction & (1 << 25)) { // div?
+			int32_t dividend = registers[register_source1];
+			int32_t divisor = registers[register_source2];
 			registers[register_destination] = (
-				instruction >> 30
-				?	registers[register_source1] - registers[register_source2]
-				:	registers[register_source1] + registers[register_source2]
+				divisor == 0
+				?	-1
+				: dividend == INT32_MIN && divisor == -1
+				?	INT32_MIN
+				:	dividend / divisor
 			);
+			break;
 		}
+		registers[register_destination] = registers[register_source1] ^ registers[register_source2];
 		break;
-	}
-	case 0b01100001: {// sll/mulh
-		if (instruction >> 25 & 1) {
-			// mulh - multiply high signed
-			int64_t a = (int64_t) registers[register_source1];
-			int64_t b = (int64_t) registers[register_source2];
-			int64_t result = a * b;
-			registers[register_destination] = (int32_t) (result >> 32);
-		}
-		else {
-			registers[register_destination] = registers[register_source1] << (registers[register_source2] & 0b11111);
-		}
-		break;
-	}
-	case 0b01100010: {// slt/mulhsu
-		if (instruction >> 25 & 1) {
-			// mulhsu - multiply high signed × unsigned
-			int64_t a = (int64_t) registers[register_source1];
-			uint64_t b = (uint64_t) registers_unsigned[register_source2];
-			int64_t result = a * (int64_t)b;
-			registers[register_destination] = (int32_t) (result >> 32);
-		}
-		else {
-			registers[register_destination] = registers[register_source1] < registers[register_source2] ? 1 : 0;
-		}
-		break;
-	}
-	case 0b01100011: {// sltu/mulhu
-		if (instruction >> 25 & 1) {
-			// mulhu - multiply high unsigned
-			uint64_t a = (uint64_t) registers_unsigned[register_source1];
-			uint64_t b = (uint64_t) registers_unsigned[register_source2];
-			uint64_t result = a * b;
-			registers_unsigned[register_destination] = (uint32_t) (result >> 32);
-		}
-		else {
-			registers[register_destination] = registers_unsigned[register_source1] < registers_unsigned[register_source2] ? 1 : 0;
-		}
-		break;
-	}
-	case 0b01100100: {// xor/div
-		if (instruction >> 25 & 1) {
-			// div - signed division
-			int32_t dividend = registers[register_source1];
-			int32_t divisor = registers[register_source2];
-			if (divisor == 0) {
-				registers[register_destination] = -1;
-			}
-			else if (dividend == INT32_MIN && divisor == -1) {
-				// overflow case
-				registers[register_destination] = INT32_MIN;
-			}
-			else {
-				registers[register_destination] = dividend / divisor;
-			}
-		}
-		else {
-			registers[register_destination] = registers[register_source1] ^ registers[register_source2];
-		}
-		break;
-	}
 	case 0b01100101: {// srl/sra/divu
-		if (instruction >> 25 & 1) {
-			// divu - unsigned division
-			uint32_t dividend = registers_unsigned[register_source1];
+		if (instruction & (1 << 25)) { // divu?
 			uint32_t divisor = registers_unsigned[register_source2];
-			if (divisor == 0) {
-				registers_unsigned[register_destination] = 0xffffffff;
-			}
-			else {
-				registers_unsigned[register_destination] = dividend / divisor;
-			}
+			registers_unsigned[register_destination] = (
+				divisor == 0
+				?	0xffffffff
+				:	registers_unsigned[register_source1] / divisor
+			);
+			break;
+		}
+		uint32_t shift_by = registers[register_source2] & 0b11111;
+		if (instruction >> 30) {
+			registers[register_destination] = registers[register_source1] >> shift_by;
 		}
 		else {
-			uint32_t shift_by = registers[register_source2] & 0b11111;
-			if (instruction >> 30) {
-				registers[register_destination] = registers[register_source1] >> shift_by;
-			}
-			else {
-				registers_unsigned[register_destination] = registers_unsigned[register_source1] >> shift_by;
-			}
+			registers_unsigned[register_destination] = registers_unsigned[register_source1] >> shift_by;
 		}
 		break;
 	}
-	case 0b01100110: {// or/rem
-		if (instruction >> 25 & 1) {
-			// rem - signed remainder
+	case 0b01100110:// or/rem
+		if (instruction & (1 << 25)) { // rem?
 			int32_t dividend = registers[register_source1];
 			int32_t divisor = registers[register_source2];
-			if (divisor == 0) {
-				registers[register_destination] = dividend;
-			}
-			else if (dividend == INT32_MIN && divisor == -1) {
-				// overflow case
-				registers[register_destination] = 0;
-			}
-			else {
-				registers[register_destination] = dividend % divisor;
-			}
+			registers[register_destination] = (
+				divisor == 0
+				?	dividend
+				: dividend == INT32_MIN && divisor == -1 // overflow?
+				?	0
+				:	dividend % divisor
+			);
+			break;
 		}
-		else {
-			registers[register_destination] = registers[register_source1] | registers[register_source2];
-		}
+		registers[register_destination] = registers[register_source1] | registers[register_source2];
 		break;
-	}
-	case 0b01100111: {// and/remu
-		if (instruction >> 25 & 1) {
-			// remu - unsigned remainder
+	case 0b01100111:// and/remu
+		if (instruction & (1 << 25)) { // remu?
 			uint32_t dividend = registers_unsigned[register_source1];
 			uint32_t divisor = registers_unsigned[register_source2];
-			if (divisor == 0) {
-				registers_unsigned[register_destination] = dividend;
-			}
-			else {
-				registers_unsigned[register_destination] = dividend % divisor;
-			}
+			registers_unsigned[register_destination] = (
+				divisor == 0
+				?	dividend
+				:	dividend % divisor
+			);
+			break;
 		}
-		else {
-			registers[register_destination] = registers[register_source1] & registers[register_source2];
-		}
+		registers[register_destination] = registers[register_source1] & registers[register_source2];
 		break;
-	}
 	case 0b01101000:// lui ;)
 	case 0b01101001:
 	case 0b01101010:
