@@ -11,8 +11,9 @@ I wanted to do this for a long time, but never had the time to do it. Now I stil
 
 ## Supported Extensions
 
-This CPU implements the **RV32I** base instruction set, which includes:
+This CPU implements the **RV32I** base instruction set and the **RV32M** extension:
 
+### RV32I Base Instructions
 - **Load Instructions**: `lb`, `lh`, `lw`, `lbu`, `lhu`
 - **Store Instructions**: `sb`, `sh`, `sw`
 - **Arithmetic/Logical (Immediate)**: `addi`, `slli`, `slti`, `sltiu`, `xori`, `srli`, `srai`, `ori`, `andi`
@@ -20,6 +21,11 @@ This CPU implements the **RV32I** base instruction set, which includes:
 - **Arithmetic/Logical (Register)**: `add`, `sub`, `sll`, `slt`, `sltu`, `xor`, `srl`, `sra`, `or`, `and`
 - **Branch Instructions**: `beq`, `bne`, `blt`, `bge`, `bltu`, `bgeu`
 - **Jump Instructions**: `jal`, `jalr`
+
+### RV32M Extension (Integer Multiplication and Division)
+- **Multiplication**: `mul`, `mulh`, `mulhsu`, `mulhu`
+- **Division**: `div`, `divu`
+- **Remainder**: `rem`, `remu`
 
 ## How to use
 
