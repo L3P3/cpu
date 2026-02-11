@@ -37,19 +37,19 @@ _start:
 	
 	# Test 5: AMOXOR.W - Atomic XOR
 	li x7, 15
-	amoxor.w x14, x7, (x1)  # x14 = 20 (old value), memory[0x100] = 20^15 = 27
+	amoxor.w x14, x7, (x1)  # x14 = 20 (old value), memory[0x100] = 20 XOR 15 = 27
 	
 	# Test 6: AMOAND.W - Atomic AND
 	li x8, 31
 	sw x8, 0(x1)            # reset memory[0x100] = 31
 	li x9, 7
-	amoand.w x15, x9, (x1)  # x15 = 31 (old value), memory[0x100] = 31&7 = 7
+	amoand.w x15, x9, (x1)  # x15 = 31 (old value), memory[0x100] = 31 AND 7 = 7
 	
 	# Test 7: AMOOR.W - Atomic OR
 	li x28, 5
 	sw x28, 0(x1)           # reset memory[0x100] = 5
 	li x29, 26
-	amoor.w x16, x29, (x1)  # x16 = 5 (old value), memory[0x100] = 5|26 = 31
+	amoor.w x16, x29, (x1)  # x16 = 5 (old value), memory[0x100] = 5 OR 26 = 31
 	
 	# Test 8: AMOMIN.W - Atomic Min (signed)
 	li x28, 10

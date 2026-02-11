@@ -327,17 +327,19 @@ impl CPU {
                         };
                     }
                     0b11000 => { // amominu.w
-                        self.registers[register_destination] = self.memory32()[word_index];
-                        self.memory32_mut()[word_index] = if self.memory32_unsigned()[word_index] < self.registers_unsigned(register_source2) {
-                            self.memory32()[word_index]
+                        let old_val = self.memory32()[word_index];
+                        self.registers[register_destination] = old_val;
+                        self.memory32_mut()[word_index] = if (old_val as u32) < self.registers_unsigned(register_source2) {
+                            old_val
                         } else {
                             self.registers[register_source2]
                         };
                     }
                     0b11100 => { // amomaxu.w
-                        self.registers[register_destination] = self.memory32()[word_index];
-                        self.memory32_mut()[word_index] = if self.memory32_unsigned()[word_index] > self.registers_unsigned(register_source2) {
-                            self.memory32()[word_index]
+                        let old_val = self.memory32()[word_index];
+                        self.registers[register_destination] = old_val;
+                        self.memory32_mut()[word_index] = if (old_val as u32) > self.registers_unsigned(register_source2) {
+                            old_val
                         } else {
                             self.registers[register_source2]
                         };
