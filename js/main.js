@@ -627,26 +627,6 @@ function tick() {
 				}
 			}
 			break;
-		case 0b11000: // fcvt.w.s/fcvt.w.d/fcvt.wu.s/fcvt.wu.d
-			if (is_double) {
-				const val = fp_registers_f64[register_source1];
-				if (register_source2 === 0b00000) { // fcvt.w.d
-					registers[register_destination] = val;
-				}
-				else if (register_source2 === 0b00001) { // fcvt.wu.d
-					registers_unsigned[register_destination] = val >>> 0;
-				}
-			}
-			else {
-				const val = fp_registers_f32[register_source1 * 2];
-				if (register_source2 === 0b00000) { // fcvt.w.s
-					registers[register_destination] = val;
-				}
-				else if (register_source2 === 0b00001) { // fcvt.wu.s
-					registers_unsigned[register_destination] = val >>> 0;
-				}
-			}
-			break;
 		case 0b11110: // fmv.w.x
 			if (is_double) { // fmv.d.x (RV64 only, not implemented)
 				throw 'illegal instruction';
