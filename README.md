@@ -11,7 +11,12 @@ I wanted to do this for a long time, but never had the time to do it. Now I stil
 
 ## Supported Extensions
 
-This CPU implements the **RV32I** base instruction set, the **RV32M** extension, and the **RV32A** extension:
+This CPU implements the **RV32G** instruction set, which includes:
+- **RV32I**: Base instruction set
+- **RV32M**: Integer multiplication and division  
+- **RV32A**: Atomic instructions
+- **RV32F**: Single-precision floating-point
+- **RV32D**: Double-precision floating-point
 
 ### RV32I Base Instructions
 - **Load Instructions**: `lb`, `lh`, `lw`, `lbu`, `lhu`
@@ -31,6 +36,26 @@ This CPU implements the **RV32I** base instruction set, the **RV32M** extension,
 - **Load-Reserved/Store-Conditional**: `lr.w`, `sc.w`
 - **Atomic Memory Operations**: `amoadd.w`, `amoswap.w`, `amoxor.w`, `amoand.w`, `amoor.w`
 - **Atomic Min/Max**: `amomin.w`, `amomax.w`, `amominu.w`, `amomaxu.w`
+
+### RV32F Extension (Single-Precision Floating-Point)
+- **Load/Store**: `flw`, `fsw`
+- **Arithmetic**: `fadd.s`, `fsub.s`, `fmul.s`, `fdiv.s`, `fsqrt.s`
+- **Fused Multiply-Add**: `fmadd.s`, `fmsub.s`, `fnmsub.s`, `fnmadd.s`
+- **Conversion**: `fcvt.w.s`, `fcvt.wu.s`, `fcvt.s.w`, `fcvt.s.wu`, `fmv.x.w`, `fmv.w.x`
+- **Comparison**: `feq.s`, `flt.s`, `fle.s`
+- **Sign Injection**: `fsgnj.s`, `fsgnjn.s`, `fsgnjx.s`
+- **Min/Max**: `fmin.s`, `fmax.s`
+- **Classification**: `fclass.s`
+
+### RV32D Extension (Double-Precision Floating-Point)
+- **Load/Store**: `fld`, `fsd`
+- **Arithmetic**: `fadd.d`, `fsub.d`, `fmul.d`, `fdiv.d`, `fsqrt.d`
+- **Fused Multiply-Add**: `fmadd.d`, `fmsub.d`, `fnmsub.d`, `fnmadd.d`
+- **Conversion**: `fcvt.w.d`, `fcvt.wu.d`, `fcvt.d.w`, `fcvt.d.wu`, `fcvt.s.d`, `fcvt.d.s`
+- **Comparison**: `feq.d`, `flt.d`, `fle.d`
+- **Sign Injection**: `fsgnj.d`, `fsgnjn.d`, `fsgnjx.d`
+- **Min/Max**: `fmin.d`, `fmax.d`
+- **Classification**: `fclass.d`
 
 ## How to use
 

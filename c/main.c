@@ -4,6 +4,7 @@
 #include <string.h>
 #include <time.h>
 #include <stdbool.h>
+#include <math.h>
 
 #define MEMORY_SIZE 64 * 1024
 
@@ -13,6 +14,7 @@
 #define OOB_BITS_16 (~(MEMORY_SIZE - 1 - 1)) // 0xFFFF0000 - halfword access  
 #define OOB_BITS_32 (~(MEMORY_SIZE - 1 - 3)) // 0xFFFF0000 - word access
 #define OOB_BITS_PC (~(MEMORY_SIZE / 4 - 1)) // 0xFFFFC000 - program counter (word index)
+#define OOB_BITS_64 (~(MEMORY_SIZE - 1 - 7)) // 0xFFFF0000 - double word access
 
 // Branch prediction hint for unlikely conditions
 #define unlikely(x) __builtin_expect(!!(x), 0)
@@ -23,6 +25,14 @@ uint32_t memory32_unsigned[MEMORY_SIZE / 4];
 int32_t *memory32 = (int32_t *) memory32_unsigned;
 uint16_t *memory16 = (uint16_t *) memory32_unsigned;
 uint8_t *memory8 = (uint8_t *) memory32_unsigned;
+
+// Floating-point registers (64-bit for D extension compatibility)
+union {
+	float f32[64];      // 32 registers * 2 (for 64-bit storage)
+	double f64[32];     // 32 registers
+	uint32_t u32[64];   // 32 registers * 2
+	int32_t i32[64];    // 32 registers * 2
+} fp_registers;
 
 // index for 32 bit!
 uint32_t program_counter = 0;
@@ -78,6 +88,22 @@ void tick() {
 		int32_t addr = registers[register_source1] + ((int32_t)instruction >> 20);
 		if (unlikely(addr & OOB_BITS_16)) goto error_oob;
 		registers[register_destination] = memory16[addr >> 1];
+		break;
+	}
+	// floating-point load
+	case 0b00001010: { // flw
+		int32_t addr = registers[register_source1] + ((int32_t)instruction >> 20);
+		if (unlikely(addr & OOB_BITS_32)) goto error_oob;
+		fp_registers.u32[register_destination * 2] = memory32_unsigned[addr >> 2];
+		fp_registers.u32[register_destination * 2 + 1] = 0xffffffff; // NaN-box
+		break;
+	}
+	case 0b00001011: { // fld
+		int32_t addr = registers[register_source1] + ((int32_t)instruction >> 20);
+		if (unlikely(addr & OOB_BITS_64)) goto error_oob;
+		uint32_t word_index = addr >> 2;
+		fp_registers.u32[register_destination * 2] = memory32_unsigned[word_index];
+		fp_registers.u32[register_destination * 2 + 1] = memory32_unsigned[word_index + 1];
 		break;
 	}
 	// fence
@@ -140,6 +166,21 @@ void tick() {
 		int32_t addr = registers[register_source1] + (((int32_t)instruction >> 25) << 5 | register_destination);
 		if (unlikely(addr & OOB_BITS_32)) goto error_oob;
 		memory32[addr >> 2] = registers[register_source2];
+		break;
+	}
+	// floating-point store
+	case 0b01001010: { // fsw
+		int32_t addr = registers[register_source1] + (((int32_t)instruction >> 25) << 5 | register_destination);
+		if (unlikely(addr & OOB_BITS_32)) goto error_oob;
+		memory32_unsigned[addr >> 2] = fp_registers.u32[register_source2 * 2];
+		break;
+	}
+	case 0b01001011: { // fsd
+		int32_t addr = registers[register_source1] + (((int32_t)instruction >> 25) << 5 | register_destination);
+		if (unlikely(addr & OOB_BITS_64)) goto error_oob;
+		uint32_t word_index = addr >> 2;
+		memory32_unsigned[word_index] = fp_registers.u32[register_source2 * 2];
+		memory32_unsigned[word_index + 1] = fp_registers.u32[register_source2 * 2 + 1];
 		break;
 	}
 	// atomic
@@ -320,6 +361,301 @@ void tick() {
 	case 0b01101111:
 		registers[register_destination] = instruction & 0xfffff000;
 		break;
+	// fused multiply-add (F and D extensions)
+	case 0b10000010: // fmadd.s
+	case 0b10000011: { // fmadd.d
+		uint32_t register_source3 = instruction >> 27;
+		bool is_double = funct3 & 1;
+		if (is_double) {
+			fp_registers.f64[register_destination] = fp_registers.f64[register_source1] * fp_registers.f64[register_source2] + fp_registers.f64[register_source3];
+		}
+		else {
+			fp_registers.f32[register_destination * 2] = fp_registers.f32[register_source1 * 2] * fp_registers.f32[register_source2 * 2] + fp_registers.f32[register_source3 * 2];
+			fp_registers.u32[register_destination * 2 + 1] = 0xffffffff; // NaN-box
+		}
+		break;
+	}
+	case 0b10001010: // fmsub.s
+	case 0b10001011: { // fmsub.d
+		uint32_t register_source3 = instruction >> 27;
+		bool is_double = funct3 & 1;
+		if (is_double) {
+			fp_registers.f64[register_destination] = fp_registers.f64[register_source1] * fp_registers.f64[register_source2] - fp_registers.f64[register_source3];
+		}
+		else {
+			fp_registers.f32[register_destination * 2] = fp_registers.f32[register_source1 * 2] * fp_registers.f32[register_source2 * 2] - fp_registers.f32[register_source3 * 2];
+			fp_registers.u32[register_destination * 2 + 1] = 0xffffffff; // NaN-box
+		}
+		break;
+	}
+	case 0b10010010: // fnmsub.s
+	case 0b10010011: { // fnmsub.d
+		uint32_t register_source3 = instruction >> 27;
+		bool is_double = funct3 & 1;
+		if (is_double) {
+			fp_registers.f64[register_destination] = -(fp_registers.f64[register_source1] * fp_registers.f64[register_source2]) + fp_registers.f64[register_source3];
+		}
+		else {
+			fp_registers.f32[register_destination * 2] = -(fp_registers.f32[register_source1 * 2] * fp_registers.f32[register_source2 * 2]) + fp_registers.f32[register_source3 * 2];
+			fp_registers.u32[register_destination * 2 + 1] = 0xffffffff; // NaN-box
+		}
+		break;
+	}
+	case 0b10011010: // fnmadd.s
+	case 0b10011011: { // fnmadd.d
+		uint32_t register_source3 = instruction >> 27;
+		bool is_double = funct3 & 1;
+		if (is_double) {
+			fp_registers.f64[register_destination] = -(fp_registers.f64[register_source1] * fp_registers.f64[register_source2] + fp_registers.f64[register_source3]);
+		}
+		else {
+			fp_registers.f32[register_destination * 2] = -(fp_registers.f32[register_source1 * 2] * fp_registers.f32[register_source2 * 2] + fp_registers.f32[register_source3 * 2]);
+			fp_registers.u32[register_destination * 2 + 1] = 0xffffffff; // NaN-box
+		}
+		break;
+	}
+	// floating-point operations
+	case 0b10100000: // fadd.s/fadd.d
+	case 0b10100001:
+	case 0b10100010:
+	case 0b10100011:
+	case 0b10100100:
+	case 0b10100101:
+	case 0b10100110:
+	case 0b10100111: {
+		uint32_t funct7 = instruction >> 25;
+		uint32_t funct5 = funct7 >> 2;
+		bool is_double = funct7 & 1;
+		
+		switch (funct5) {
+		case 0b00000: // fadd
+			if (is_double) {
+				fp_registers.f64[register_destination] = fp_registers.f64[register_source1] + fp_registers.f64[register_source2];
+			}
+			else {
+				fp_registers.f32[register_destination * 2] = fp_registers.f32[register_source1 * 2] + fp_registers.f32[register_source2 * 2];
+				fp_registers.u32[register_destination * 2 + 1] = 0xffffffff; // NaN-box
+			}
+			break;
+		case 0b00001: // fsub
+			if (is_double) {
+				fp_registers.f64[register_destination] = fp_registers.f64[register_source1] - fp_registers.f64[register_source2];
+			}
+			else {
+				fp_registers.f32[register_destination * 2] = fp_registers.f32[register_source1 * 2] - fp_registers.f32[register_source2 * 2];
+				fp_registers.u32[register_destination * 2 + 1] = 0xffffffff; // NaN-box
+			}
+			break;
+		case 0b00010: // fmul
+			if (is_double) {
+				fp_registers.f64[register_destination] = fp_registers.f64[register_source1] * fp_registers.f64[register_source2];
+			}
+			else {
+				fp_registers.f32[register_destination * 2] = fp_registers.f32[register_source1 * 2] * fp_registers.f32[register_source2 * 2];
+				fp_registers.u32[register_destination * 2 + 1] = 0xffffffff; // NaN-box
+			}
+			break;
+		case 0b00011: // fdiv
+			if (is_double) {
+				fp_registers.f64[register_destination] = fp_registers.f64[register_source1] / fp_registers.f64[register_source2];
+			}
+			else {
+				fp_registers.f32[register_destination * 2] = fp_registers.f32[register_source1 * 2] / fp_registers.f32[register_source2 * 2];
+				fp_registers.u32[register_destination * 2 + 1] = 0xffffffff; // NaN-box
+			}
+			break;
+		case 0b01011: // fsqrt
+			if (is_double) {
+				fp_registers.f64[register_destination] = sqrt(fp_registers.f64[register_source1]);
+			}
+			else {
+				fp_registers.f32[register_destination * 2] = sqrtf(fp_registers.f32[register_source1 * 2]);
+				fp_registers.u32[register_destination * 2 + 1] = 0xffffffff; // NaN-box
+			}
+			break;
+		case 0b00100: // fsgnj/fsgnjn/fsgnjx
+			if (is_double) {
+				uint32_t sign1 = fp_registers.u32[register_source1 * 2 + 1] >> 31;
+				uint32_t sign2 = fp_registers.u32[register_source2 * 2 + 1] >> 31;
+				fp_registers.u32[register_destination * 2] = fp_registers.u32[register_source1 * 2];
+				fp_registers.u32[register_destination * 2 + 1] = (
+					funct3 == 0b000 // fsgnj
+					?	(fp_registers.u32[register_source1 * 2 + 1] & 0x7fffffff) | (sign2 << 31)
+					: funct3 == 0b001 // fsgnjn
+					?	(fp_registers.u32[register_source1 * 2 + 1] & 0x7fffffff) | ((sign2 ^ 1) << 31)
+					:	(fp_registers.u32[register_source1 * 2 + 1] & 0x7fffffff) | ((sign1 ^ sign2) << 31) // fsgnjx
+				);
+			}
+			else {
+				uint32_t sign1 = fp_registers.u32[register_source1 * 2] >> 31;
+				uint32_t sign2 = fp_registers.u32[register_source2 * 2] >> 31;
+				fp_registers.u32[register_destination * 2] = (
+					funct3 == 0b000 // fsgnj
+					?	(fp_registers.u32[register_source1 * 2] & 0x7fffffff) | (sign2 << 31)
+					: funct3 == 0b001 // fsgnjn
+					?	(fp_registers.u32[register_source1 * 2] & 0x7fffffff) | ((sign2 ^ 1) << 31)
+					:	(fp_registers.u32[register_source1 * 2] & 0x7fffffff) | ((sign1 ^ sign2) << 31) // fsgnjx
+				);
+				fp_registers.u32[register_destination * 2 + 1] = 0xffffffff; // NaN-box
+			}
+			break;
+		case 0b00101: { // fmin/fmax
+			if (is_double) {
+				double val1 = fp_registers.f64[register_source1];
+				double val2 = fp_registers.f64[register_source2];
+				fp_registers.f64[register_destination] = (
+					funct3 == 0b000 // fmin
+					?	(val1 < val2 ? val1 : val2)
+					:	(val1 > val2 ? val1 : val2) // fmax
+				);
+			}
+			else {
+				float val1 = fp_registers.f32[register_source1 * 2];
+				float val2 = fp_registers.f32[register_source2 * 2];
+				fp_registers.f32[register_destination * 2] = (
+					funct3 == 0b000 // fmin
+					?	(val1 < val2 ? val1 : val2)
+					:	(val1 > val2 ? val1 : val2) // fmax
+				);
+				fp_registers.u32[register_destination * 2 + 1] = 0xffffffff; // NaN-box
+			}
+			break;
+		}
+		case 0b01000: // fcvt.s.d/fcvt.d.s
+			if (is_double) { // fcvt.d.s
+				fp_registers.f64[register_destination] = fp_registers.f32[register_source1 * 2];
+			}
+			else { // fcvt.s.d
+				fp_registers.f32[register_destination * 2] = fp_registers.f64[register_source1];
+				fp_registers.u32[register_destination * 2 + 1] = 0xffffffff; // NaN-box
+			}
+			break;
+		case 0b10100: // fcmp (feq/flt/fle)
+			if (is_double) {
+				double val1 = fp_registers.f64[register_source1];
+				double val2 = fp_registers.f64[register_source2];
+				registers[register_destination] = (
+					funct3 == 0b010 // feq
+					?	(val1 == val2 ? 1 : 0)
+					: funct3 == 0b001 // flt
+					?	(val1 < val2 ? 1 : 0)
+					:	(val1 <= val2 ? 1 : 0) // fle
+				);
+			}
+			else {
+				float val1 = fp_registers.f32[register_source1 * 2];
+				float val2 = fp_registers.f32[register_source2 * 2];
+				registers[register_destination] = (
+					funct3 == 0b010 // feq
+					?	(val1 == val2 ? 1 : 0)
+					: funct3 == 0b001 // flt
+					?	(val1 < val2 ? 1 : 0)
+					:	(val1 <= val2 ? 1 : 0) // fle
+				);
+			}
+			break;
+		case 0b11000: // fcvt.w.s/fcvt.w.d/fcvt.wu.s/fcvt.wu.d
+			if (is_double) {
+				double val = fp_registers.f64[register_source1];
+				if (register_source2 == 0b00000) { // fcvt.w.d
+					registers[register_destination] = (int32_t)val;
+				}
+				else if (register_source2 == 0b00001) { // fcvt.wu.d
+					registers_unsigned[register_destination] = (uint32_t)val;
+				}
+			}
+			else {
+				float val = fp_registers.f32[register_source1 * 2];
+				if (register_source2 == 0b00000) { // fcvt.w.s
+					registers[register_destination] = (int32_t)val;
+				}
+				else if (register_source2 == 0b00001) { // fcvt.wu.s
+					registers_unsigned[register_destination] = (uint32_t)val;
+				}
+			}
+			break;
+		case 0b11010: // fcvt.s.w/fcvt.d.w/fcvt.s.wu/fcvt.d.wu
+			if (is_double) {
+				if (register_source2 == 0b00000) { // fcvt.d.w
+					fp_registers.f64[register_destination] = (double)registers[register_source1];
+				}
+				else if (register_source2 == 0b00001) { // fcvt.d.wu
+					fp_registers.f64[register_destination] = (double)registers_unsigned[register_source1];
+				}
+			}
+			else {
+				if (register_source2 == 0b00000) { // fcvt.s.w
+					fp_registers.f32[register_destination * 2] = (float)registers[register_source1];
+				}
+				else if (register_source2 == 0b00001) { // fcvt.s.wu
+					fp_registers.f32[register_destination * 2] = (float)registers_unsigned[register_source1];
+				}
+				fp_registers.u32[register_destination * 2 + 1] = 0xffffffff; // NaN-box
+			}
+			break;
+		case 0b11100: // fmv.x.w/fmv.x.d/fclass
+			if (funct3 == 0b000) { // fmv.x.w/fmv.x.d
+				if (is_double) { // fmv.x.d (RV64 only, not implemented)
+					error_message = "illegal instruction"; return;
+				}
+				else { // fmv.x.w
+					registers[register_destination] = fp_registers.i32[register_source1 * 2];
+				}
+			}
+			else if (funct3 == 0b001) { // fclass
+				if (is_double) {
+					uint32_t bits_hi = fp_registers.u32[register_source1 * 2 + 1];
+					uint32_t bits_lo = fp_registers.u32[register_source1 * 2];
+					uint32_t sign = bits_hi >> 31;
+					uint32_t exp = (bits_hi >> 20) & 0x7ff;
+					uint64_t mantissa = ((uint64_t)(bits_hi & 0xfffff) << 32) | bits_lo;
+					
+					registers[register_destination] = (
+						exp == 0 && mantissa == 0
+						?	(sign ? 0x008 : 0x001) // -0 or +0
+						: exp == 0
+						?	(sign ? 0x010 : 0x002) // -subnormal or +subnormal
+						: exp == 0x7ff && mantissa == 0
+						?	(sign ? 0x080 : 0x004) // -inf or +inf
+						: exp == 0x7ff
+						?	0x200 // qNaN or sNaN
+						:	(sign ? 0x040 : 0x020) // -normal or +normal
+					);
+				}
+				else {
+					uint32_t bits = fp_registers.u32[register_source1 * 2];
+					uint32_t sign = bits >> 31;
+					uint32_t exp = (bits >> 23) & 0xff;
+					uint32_t mantissa = bits & 0x7fffff;
+					
+					registers[register_destination] = (
+						exp == 0 && mantissa == 0
+						?	(sign ? 0x008 : 0x001) // -0 or +0
+						: exp == 0
+						?	(sign ? 0x010 : 0x002) // -subnormal or +subnormal
+						: exp == 0xff && mantissa == 0
+						?	(sign ? 0x080 : 0x004) // -inf or +inf
+						: exp == 0xff
+						?	0x200 // qNaN or sNaN
+						:	(sign ? 0x040 : 0x020) // -normal or +normal
+					);
+				}
+			}
+			break;
+		case 0b11110: // fmv.w.x
+			if (is_double) { // fmv.d.x (RV64 only, not implemented)
+				error_message = "illegal instruction"; return;
+			}
+			else { // fmv.w.x
+				fp_registers.i32[register_destination * 2] = registers[register_source1];
+				fp_registers.u32[register_destination * 2 + 1] = 0xffffffff; // NaN-box
+			}
+			break;
+		default:
+			error_message = "illegal instruction"; return;
+		}
+		break;
+	}
 	case 0b11000000: // branch
 	case 0b11000001:
 	case 0b11000100:
